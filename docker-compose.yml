@@ -38,6 +38,8 @@ services:
     environment:
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-robflow}
       DATABASE_URL: ${DATABASE_URL:-postgresql://robflow:robflow_dev_password@postgres:5432/robflow}
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
