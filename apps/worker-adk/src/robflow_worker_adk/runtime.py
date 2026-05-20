@@ -812,6 +812,10 @@ class DeterministicWorkflowExecutor:
             loop_id = str(node.get("id"))
             loop_counts[loop_id] = loop_counts.get(loop_id, 0) + 1
             max_iterations = _as_int(state.get("maxIterations") if state.get("maxIterations") is not None else loop.get("maxIterations"), 3, minimum=1, maximum=100)
+            if isinstance(state, dict):
+                state["iteration"] = loop_counts[loop_id]
+                state["maxIterations"] = max_iterations
+                state["remainingIterations"] = max(0, max_iterations - loop_counts[loop_id])
             sufficient = state.get("sufficient") is True
             exhausted = loop_counts[loop_id] >= max_iterations
             continue_handle = _as_text(loop.get("continueHandle")) or "continue"
