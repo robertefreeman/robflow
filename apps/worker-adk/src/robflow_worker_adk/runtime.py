@@ -721,6 +721,10 @@ class DeterministicWorkflowExecutor:
         content = self._extract_message_content(body)
         parsed = _extract_json_object(content)
         if parsed:
+            nested_report = parsed.get("reportMarkdown")
+            nested = _extract_json_object(nested_report) if isinstance(nested_report, str) else None
+            if nested and isinstance(nested.get("reportMarkdown"), str):
+                return {**parsed, **nested}
             return parsed
         return {"sufficient": iteration >= max_iterations, "gaps": "Model did not return structured sufficiency JSON.", "reportMarkdown": content}
 
