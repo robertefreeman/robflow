@@ -19,7 +19,9 @@ async function nextVersionNumber(repos: PersistenceRepositories, agentId: string
 
 async function latestEditableVersion(repos: PersistenceRepositories, agent: Agent): Promise<AgentVersion | null> {
   const versions = await repos.agents.listVersions(agent.id);
-  return versions.find((entry) => entry.status === "draft") ?? (agent.currentVersionId ? repos.agents.getVersion(agent.currentVersionId) : versions[0] ?? null);
+  const current = agent.currentVersionId ? versions.find((entry) => entry.id === agent.currentVersionId) ?? await repos.agents.getVersion(agent.currentVersionId) : null;
+  const draft = versions.find((entry) => entry.status === "draft" && (!current || entry.version > current.version));
+  return draft ?? current ?? versions[0] ?? null;
 }
 
 function matchesSearch(agent: Agent, search?: string | null): boolean {
@@ -124,7 +126,8 @@ export async function updateAgentDetails(agentId: string, input: { name?: string
 
 async function ensureDraftVersion(agent: Agent, repos: PersistenceRepositories): Promise<AgentVersion> {
   const versions = await repos.agents.listVersions(agent.id);
-  const draft = versions.find((entry) => entry.status === "draft");
+  const current = agent.currentVersionId ? versions.find((entry) => entry.id === agent.currentVersionId) ?? await repos.agents.getVersion(agent.currentVersionId) : null;
+  const draft = versions.find((entry) => entry.status === "draft" && (!current || entry.version > current.version));
   if (draft) return draft;
   return repos.agents.createVersion({ agentId: agent.id, version: await nextVersionNumber(repos, agent.id), status: "draft", definition: { schemaVersion: WORKFLOW_IR_SCHEMA_VERSION } });
 }
