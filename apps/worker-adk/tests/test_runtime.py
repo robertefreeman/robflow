@@ -90,6 +90,9 @@ class FakeStore:
 
 
 class FakeResponse:
+    def __init__(self, body=None) -> None:
+        self.body = body or {"choices": [{"message": {"content": "Hola mundo"}}], "usage": {"total_tokens": 3}}
+
     def __enter__(self):
         return self
 
@@ -97,7 +100,7 @@ class FakeResponse:
         return False
 
     def read(self):
-        return json.dumps({"choices": [{"message": {"content": "Hola mundo"}}], "usage": {"total_tokens": 3}}).encode("utf-8")
+        return json.dumps(self.body).encode("utf-8")
 
 
 class WorkerRuntimeTest(unittest.TestCase):
@@ -173,6 +176,47 @@ class WorkerRuntimeTest(unittest.TestCase):
         self.assertTrue(any(event[0] == "model.completed" for event in store.events))
         request_body = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
         self.assertEqual(request_body["messages"][-1]["content"], "hello")
+
+    def test_worker_executes_searxng_and_firecrawl_tool_nodes(self) -> None:
+        workflow = {
+            "nodes": [
+                {"id": "start", "category": "start", "name": "Start"},
+                {
+                    "id": "search",
+                    "category": "action",
+                    "name": "Search",
+                    "runtime": {"kind": "external", "tool": {"name": "searxng.search"}},
+                    "config": {"baseUrl": "https://searxng.example", "maxResults": 1},
+                },
+                {
+                    "id": "scrape",
+                    "category": "action",
+                    "name": "Scrape",
+                    "runtime": {"kind": "external", "tool": {"name": "firecrawl.research"}},
+                    "config": {"baseUrl": "https://firecrawl.example", "maxPages": 1},
+                },
+                {"id": "end", "category": "terminal", "name": "End"},
+            ],
+            "edges": [{"source": "start", "target": "search"}, {"source": "search", "target": "scrape"}, {"source": "scrape", "target": "end"}],
+        }
+        job = LeasedJob(id="job-5", kind="manual", payload={"workflowIr": workflow})
+        store = FakeStore(job, workflow)
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            if "searxng.example" in url:
+                return FakeResponse({"results": [{"title": "Result", "url": "https://example.com/article", "content": "Snippet"}]})
+            if "firecrawl.example" in url:
+                return FakeResponse({"data": {"url": "https://example.com/article", "markdown": "# Article", "metadata": {"title": "Article"}}})
+            raise AssertionError(f"unexpected request {url}")
+
+        with patch("robflow_worker_adk.runtime.request.urlopen", side_effect=fake_urlopen):
+            self.assertTrue(Worker(store, worker_id="test").run_once())
+
+        self.assertEqual(store.run_status, "succeeded")
+        self.assertEqual(store.output["result"]["searchResults"][0]["url"], "https://example.com/article")
+        self.assertEqual(store.output["result"]["firecrawlDocuments"][0]["markdown"], "# Article")
+        self.assertTrue(any(event[0] == "tool.completed" for event in store.events))
 
     def test_runner_protocol_helpers_are_deterministic(self) -> None:
         backoff = RetryBackoff(max_attempts=4, initial_delay_seconds=0.5, multiplier=2, max_delay_seconds=2)

@@ -222,6 +222,10 @@ function AgentBuilderInner({ agentId }: { agentId: string }) {
     updateSelectedNode({ [key]: { ...current, ...patch }, config } as Partial<BuilderNodeData>);
   }
 
+  function updateSelectedConfig(patch: Record<string, unknown>) {
+    updateSelectedNode({ config: { ...(selectedNode?.data.config ?? {}), ...patch } });
+  }
+
   function updateEdgeLabel(value: string) {
     if (!selectedEdgeId) return;
     setEdges((current) => current.map((edge) => edge.id === selectedEdgeId ? { ...edge, label: value } : edge));
@@ -293,8 +297,8 @@ function AgentBuilderInner({ agentId }: { agentId: string }) {
               {selectedNode.data.nodeType ? <p className="note">Pinned to {selectedNode.data.nodeType.slug} v{selectedNode.data.nodeType.version}</p> : null}
               {selectedNode.data.config?.codeBacked === true ? <p className="status-output">Code-backed node metadata is worker-only; the web app will not execute it.</p> : null}
               <button type="button" onClick={() => void promoteSelectedNode()}>Promote to reusable node type</button>
-              {selectedNode.data.kind === "llm" ? <LlmFields data={selectedNode.data} availableModels={availableModels} onChange={(patch) => updateNested("model", patch)} /> : null}
-              {selectedNode.data.kind === "tool" ? <ToolFields data={selectedNode.data} onChange={(patch) => updateNested("tool", patch)} /> : null}
+              {selectedNode.data.kind === "llm" ? <LlmFields data={selectedNode.data} availableModels={availableModels} onChange={(patch) => updateNested("model", patch)} onConfigChange={updateSelectedConfig} /> : null}
+              {selectedNode.data.kind === "tool" ? <ToolFields data={selectedNode.data} onChange={(patch) => updateNested("tool", patch)} onConfigChange={updateSelectedConfig} /> : null}
               {selectedNode.data.kind === "router" ? <RouterFields data={selectedNode.data} onChange={(patch) => updateNested("router", patch)} onOutputs={(outputs) => updateSelectedNode({ outputs })} /> : null}
               {selectedNode.data.kind === "approval" ? <ApprovalFields data={selectedNode.data} onChange={(patch) => updateNested("humanInput", patch)} /> : null}
             </div>
@@ -327,14 +331,19 @@ function AgentBuilderInner({ agentId }: { agentId: string }) {
   );
 }
 
-function LlmFields({ data, availableModels, onChange }: { data: BuilderNodeData; availableModels: string[]; onChange: (patch: Record<string, unknown>) => void }) {
+function LlmFields({ data, availableModels, onChange, onConfigChange }: { data: BuilderNodeData; availableModels: string[]; onChange: (patch: Record<string, unknown>) => void; onConfigChange: (patch: Record<string, unknown>) => void }) {
   const model = data.model ?? {};
-  return <><Field label="Provider" value={String(model.provider ?? "")} onChange={(value) => onChange({ provider: value })} /><label>Model{availableModels.length > 0 ? <select value={String(model.model ?? "")} onChange={(event) => onChange({ model: event.target.value })}><option value="">Use global default</option>{availableModels.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select> : <input value={String(model.model ?? "")} onChange={(event) => onChange({ model: event.target.value })} placeholder="Use global default" />}</label><Field label="Instructions" textarea value={String(model.instructions ?? "")} onChange={(value) => onChange({ instructions: value })} /></>;
+  const deepResearch = data.config?.deepResearch && typeof data.config.deepResearch === "object" ? data.config.deepResearch as Record<string, unknown> : null;
+  function updateDeepResearch(patch: Record<string, unknown>) {
+    onConfigChange({ deepResearch: { ...(deepResearch ?? {}), ...patch } });
+  }
+  return <><Field label="Provider" value={String(model.provider ?? "")} onChange={(value) => onChange({ provider: value })} /><label>Model{availableModels.length > 0 ? <select value={String(model.model ?? "")} onChange={(event) => onChange({ model: event.target.value })}><option value="">Use global default</option>{availableModels.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select> : <input value={String(model.model ?? "")} onChange={(event) => onChange({ model: event.target.value })} placeholder="Use global default" />}</label><Field label="Instructions" textarea value={String(model.instructions ?? "")} onChange={(value) => onChange({ instructions: value })} />{deepResearch ? <><h4>Deep research</h4><Field label="Max iterations" value={String(deepResearch.maxIterations ?? 3)} onChange={(value) => updateDeepResearch({ maxIterations: Number(value) })} /><Field label="SearXNG base URL" value={String(deepResearch.searxngBaseUrl ?? "")} onChange={(value) => updateDeepResearch({ searxngBaseUrl: value })} /><Field label="Firecrawl base URL" value={String(deepResearch.firecrawlBaseUrl ?? "")} onChange={(value) => updateDeepResearch({ firecrawlBaseUrl: value })} /></> : null}</>;
 }
 
-function ToolFields({ data, onChange }: { data: BuilderNodeData; onChange: (patch: Record<string, unknown>) => void }) {
+function ToolFields({ data, onChange, onConfigChange }: { data: BuilderNodeData; onChange: (patch: Record<string, unknown>) => void; onConfigChange: (patch: Record<string, unknown>) => void }) {
   const tool = data.tool ?? {};
-  return <><Field label="Tool name" value={String(tool.name ?? "")} onChange={(value) => onChange({ name: value })} /><Field label="Version" value={String(tool.version ?? "")} onChange={(value) => onChange({ version: value })} /></>;
+  const toolName = String(tool.name ?? data.config?.toolName ?? "");
+  return <><Field label="Tool name" value={toolName} onChange={(value) => onChange({ name: value })} /><Field label="Version" value={String(tool.version ?? "")} onChange={(value) => onChange({ version: value })} />{toolName === "searxng.search" ? <><h4>SearXNG</h4><Field label="Base URL" value={String(data.config?.baseUrl ?? "")} onChange={(value) => onConfigChange({ baseUrl: value })} /><Field label="Max queries" value={String(data.config?.maxQueries ?? 3)} onChange={(value) => onConfigChange({ maxQueries: Number(value) })} /><Field label="Max results" value={String(data.config?.maxResults ?? 5)} onChange={(value) => onConfigChange({ maxResults: Number(value) })} /></> : null}{toolName.startsWith("firecrawl.") ? <><h4>Firecrawl</h4><Field label="Base URL" value={String(data.config?.baseUrl ?? "")} onChange={(value) => onConfigChange({ baseUrl: value })} /><Field label="Operation" value={String(data.config?.operation ?? "scrape")} onChange={(value) => onConfigChange({ operation: value })} /><Field label="Max pages" value={String(data.config?.maxPages ?? 6)} onChange={(value) => onConfigChange({ maxPages: Number(value) })} /></> : null}</>;
 }
 
 function RouterFields({ data, onChange, onOutputs }: { data: BuilderNodeData; onChange: (patch: Record<string, unknown>) => void; onOutputs: (outputs: Array<{ id: string }>) => void }) {
