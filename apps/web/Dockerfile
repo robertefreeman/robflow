@@ -2,6 +2,8 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY apps/web/package.json apps/web/package.json
+COPY packages/compiler-adk/package.json packages/compiler-adk/package.json
+COPY packages/persistence/package.json packages/persistence/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/workflow-ir/package.json packages/workflow-ir/package.json
 COPY packages/node-registry/package.json packages/node-registry/package.json
@@ -12,7 +14,7 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build -w @robflow/web
+RUN npm run build --workspaces --if-present
 
 FROM node:24-alpine AS runner
 WORKDIR /app
