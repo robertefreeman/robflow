@@ -548,7 +548,7 @@ class DeterministicWorkflowExecutor:
         user_request = self._user_request(input_payload)
         searxng_base_url = (_as_text(research_config.get("searxngBaseUrl")) or DEFAULT_SEARXNG_BASE_URL).rstrip("/")
         firecrawl_base_url = (_as_text(research_config.get("firecrawlBaseUrl")) or DEFAULT_FIRECRAWL_BASE_URL).rstrip("/")
-        max_iterations = _as_int(research_config.get("maxIterations"), 3, minimum=1, maximum=10)
+        max_iterations = _as_int(input_payload.get("maxIterations") if input_payload.get("maxIterations") is not None else research_config.get("maxIterations"), 3, minimum=1, maximum=10)
         max_queries = _as_int(research_config.get("maxQueriesPerIteration"), 3, minimum=1, maximum=10)
         max_results = _as_int(research_config.get("maxResultsPerQuery"), 5, minimum=1, maximum=20)
         max_pages = _as_int(research_config.get("maxPagesPerIteration"), 5, minimum=1, maximum=20)
