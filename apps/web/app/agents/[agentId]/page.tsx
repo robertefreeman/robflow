@@ -32,6 +32,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ agentId:
   const [testCases, setTestCases] = useState<TestCaseEntry[]>([]);
   const [caseId, setCaseId] = useState<string | null>(null);
   const [caseName, setCaseName] = useState("Smoke test");
+  const [caseUserRequest, setCaseUserRequest] = useState("ping");
   const [caseInput, setCaseInput] = useState('{\n  "prompt": "ping"\n}');
   const [caseExpected, setCaseExpected] = useState('{\n  "status": "succeeded",\n  "containsText": "ping",\n  "nodePath": ["start", "end"]\n}');
   const [status, setStatus] = useState("Loading agent…");
@@ -89,8 +90,13 @@ export default function AgentDetailPage({ params }: { params: Promise<{ agentId:
   function resetTestCaseForm() {
     setCaseId(null);
     setCaseName("Smoke test");
+    setCaseUserRequest("ping");
     setCaseInput('{\n  "prompt": "ping"\n}');
     setCaseExpected('{\n  "status": "succeeded",\n  "containsText": "ping",\n  "nodePath": ["start", "end"]\n}');
+  }
+
+  function useRequestAsTestInput() {
+    setCaseInput(JSON.stringify({ prompt: caseUserRequest }, null, 2));
   }
 
   async function saveTestCase(event: FormEvent<HTMLFormElement>) {
@@ -197,6 +203,11 @@ export default function AgentDetailPage({ params }: { params: Promise<{ agentId:
           <p className="note">Assertions support exact output, contains text, JSON schema, expected node path, expected tool calls, and expected status. The runner uses deterministic workflow simulation and never calls models by default.</p>
           <form className="settings-form eval-form" onSubmit={saveTestCase}>
             <label>Name<input value={caseName} onChange={(event) => setCaseName(event.target.value)} required /></label>
+            <label>User request
+              <textarea value={caseUserRequest} onChange={(event) => setCaseUserRequest(event.target.value)} rows={3} placeholder="Ask the agent what you want it to do..." />
+              <small className="field-help">Use this for simple prompt-style tests, or edit the JSON below for structured inputs.</small>
+            </label>
+            <div className="button-row"><button type="button" onClick={useRequestAsTestInput}>Use request as input</button></div>
             <div className="form-grid">
               <label>Input JSON<textarea value={caseInput} onChange={(event) => setCaseInput(event.target.value)} rows={8} /></label>
               <label>Expected assertions JSON<textarea value={caseExpected} onChange={(event) => setCaseExpected(event.target.value)} rows={8} /></label>

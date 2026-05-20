@@ -90,6 +90,22 @@ function inputFromSchema(schema: Schema | null): JsonObject {
   return Object.fromEntries(Object.entries(schema.properties).map(([key, child]) => [key, emptyValue(child)]));
 }
 
+function textInputKey(schema: Schema | null): string {
+  const properties = schema?.properties ?? {};
+  const preferred = ["userRequest", "user_request", "request", "prompt", "message", "input", "query"];
+  const stringKeys = Object.entries(properties)
+    .filter(([, child]) => {
+      const type = Array.isArray(child.type) ? child.type[0] : child.type;
+      return !type || type === "string";
+    })
+    .map(([key]) => key);
+  return preferred.find((key) => stringKeys.includes(key)) ?? stringKeys[0] ?? "userRequest";
+}
+
+function inputFromTextRequest(text: string, schema: Schema | null): JsonObject {
+  return { [textInputKey(schema)]: text };
+}
+
 function SchemaInputForm({ schema, value, onChange }: { schema: Schema | null; value: JsonObject; onChange: (value: JsonObject) => void }) {
   if (!schema?.properties) return <p className="empty-state">No workflow input schema is available. Use JSON input below.</p>;
   return (
@@ -122,6 +138,8 @@ export default function RunConsolePage({ params }: { params: Promise<{ agentId: 
   const [compareRunId, setCompareRunId] = useState("");
   const [input, setInput] = useState<JsonObject>({});
   const [jsonInput, setJsonInput] = useState("{}");
+  const [inputMode, setInputMode] = useState<"text" | "form" | "json">("text");
+  const [textInput, setTextInput] = useState("");
   const [versionId, setVersionId] = useState("");
   const [scheduleCron, setScheduleCron] = useState("*/15 * * * *");
   const [scheduleInput, setScheduleInput] = useState("{}");
@@ -180,7 +198,11 @@ export default function RunConsolePage({ params }: { params: Promise<{ agentId: 
   async function createRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
-      const payload = Object.keys(input).length ? input : parseObject(jsonInput, "Run input");
+      const payload = inputMode === "text"
+        ? inputFromTextRequest(textInput, data?.inputSchema ?? null)
+        : inputMode === "json"
+          ? parseObject(jsonInput, "Run input")
+          : input;
       const response = await fetch(`/api/agent-versions/${versionId}/runs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input: payload }) });
       const next = await response.json();
       if (!response.ok) throw new Error(next.error ?? "Unable to create run");
@@ -260,8 +282,19 @@ export default function RunConsolePage({ params }: { params: Promise<{ agentId: 
               <Section title="Start run">
                 <form className="settings-form" onSubmit={createRun}>
                   <label>Version<select value={versionId} onChange={(event) => setVersionId(event.target.value)}>{data?.versions.map((version) => <option key={version.id} value={version.id}>v{version.version} {version.status}</option>)}</select></label>
-                  <SchemaInputForm schema={data?.inputSchema ?? null} value={input} onChange={(next) => { setInput(next); setJsonInput(stringify(next)); }} />
-                  <label>JSON input<textarea rows={6} value={jsonInput} onChange={(event) => { setJsonInput(event.target.value); try { setInput(parseObject(event.target.value, "Run input")); } catch { setInput({}); } }} /></label>
+                  <div className="input-mode-tabs" role="tablist" aria-label="Run input mode">
+                    <button type="button" className={inputMode === "text" ? "selected-tab" : ""} onClick={() => setInputMode("text")}>User request</button>
+                    <button type="button" className={inputMode === "form" ? "selected-tab" : ""} onClick={() => setInputMode("form")}>Schema form</button>
+                    <button type="button" className={inputMode === "json" ? "selected-tab" : ""} onClick={() => setInputMode("json")}>JSON</button>
+                  </div>
+                  {inputMode === "text" ? (
+                    <label>User request
+                      <textarea rows={6} value={textInput} onChange={(event) => setTextInput(event.target.value)} placeholder="Ask the agent what you want it to do..." />
+                      <small className="field-help">This is sent as <code>{textInputKey(data?.inputSchema ?? null)}</code>. Use JSON only when you need structured inputs.</small>
+                    </label>
+                  ) : null}
+                  {inputMode === "form" ? <SchemaInputForm schema={data?.inputSchema ?? null} value={input} onChange={(next) => { setInput(next); setJsonInput(stringify(next)); }} /> : null}
+                  {inputMode === "json" ? <label>JSON input<textarea rows={6} value={jsonInput} onChange={(event) => { setJsonInput(event.target.value); try { setInput(parseObject(event.target.value, "Run input")); } catch { setInput({}); } }} /></label> : null}
                   <button type="submit" disabled={!versionId}>Queue run</button>
                 </form>
               </Section>
