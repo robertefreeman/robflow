@@ -38,6 +38,7 @@ services:
     environment:
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-robflow}
       DATABASE_URL: ${DATABASE_URL:-postgresql://robflow:robflow_dev_password@postgres:5432/robflow}
+      INFERENCE_CONFIG_ENCRYPTION_KEY: ${INFERENCE_CONFIG_ENCRYPTION_KEY:?INFERENCE_CONFIG_ENCRYPTION_KEY is required}
       HOSTNAME: 0.0.0.0
       PORT: 3000
     ports:
