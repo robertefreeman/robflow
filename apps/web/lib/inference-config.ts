@@ -12,6 +12,7 @@ export interface InferenceConfigInput {
   readonly headers?: Record<string, string>;
   readonly timeoutMs?: number;
   readonly maxRetries?: number;
+  readonly models?: string[];
 }
 
 export interface StoredInferenceConfig {
@@ -20,6 +21,7 @@ export interface StoredInferenceConfig {
   readonly headers: Record<string, string>;
   readonly timeoutMs: number;
   readonly maxRetries: number;
+  readonly models?: string[];
   readonly apiKeySecretId?: string;
 }
 
@@ -46,7 +48,8 @@ export const defaultInferenceConfig: StoredInferenceConfig = {
   defaultModel: "",
   headers: {},
   timeoutMs: 30000,
-  maxRetries: 2
+  maxRetries: 2,
+  models: []
 };
 
 const encryptedPrefix = "aes-256-gcm:";
@@ -110,12 +113,16 @@ function normalizeInteger(value: unknown, field: string, min: number, max: numbe
   return normalized;
 }
 
+function normalizeModelList(value: unknown, fallback: readonly string[] = []): string[] {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+  return [...new Set(value.flatMap((model) => typeof model === "string" && model.trim() ? [model.trim()] : []))].sort();
+}
+
 export function normalizeInferenceConfig(input: InferenceConfigInput | Record<string, unknown>, existing?: StoredInferenceConfig | null): StoredInferenceConfig {
   const baseUrl = typeof input.baseUrl === "string" ? input.baseUrl : existing?.baseUrl ?? "";
   const defaultModel = typeof input.defaultModel === "string" ? input.defaultModel.trim() : existing?.defaultModel ?? "";
-  if (!defaultModel) {
-    throw new Error("Default model is required");
-  }
 
   return {
     baseUrl: normalizeBaseUrl(baseUrl),
@@ -123,6 +130,7 @@ export function normalizeInferenceConfig(input: InferenceConfigInput | Record<st
     headers: normalizeHeaders(input.headers ?? existing?.headers),
     timeoutMs: normalizeInteger(input.timeoutMs, "Timeout", 1000, 300000, existing?.timeoutMs ?? defaultInferenceConfig.timeoutMs),
     maxRetries: normalizeInteger(input.maxRetries, "Max retries", 0, 10, existing?.maxRetries ?? defaultInferenceConfig.maxRetries),
+    models: normalizeModelList(input.models, existing?.models),
     apiKeySecretId: existing?.apiKeySecretId
   };
 }
@@ -151,6 +159,7 @@ export function redactInferenceConfig(config: StoredInferenceConfig): RedactedIn
     headers: config.headers,
     timeoutMs: config.timeoutMs,
     maxRetries: config.maxRetries,
+    models: config.models,
     apiKeySet: Boolean(config.apiKeySecretId)
   };
 }

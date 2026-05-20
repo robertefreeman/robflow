@@ -61,6 +61,7 @@ services:
       context: ./apps/worker-adk
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://robflow:robflow_dev_password@postgres:5432/robflow}
+      INFERENCE_CONFIG_ENCRYPTION_KEY: ${INFERENCE_CONFIG_ENCRYPTION_KEY:?INFERENCE_CONFIG_ENCRYPTION_KEY is required}
       WORKER_ADK_HOST: 0.0.0.0
       WORKER_ADK_PORT: ${WORKER_ADK_PORT:-8080}
     ports:

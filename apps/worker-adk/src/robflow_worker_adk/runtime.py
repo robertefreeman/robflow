@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import base64
 import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from urllib import request, error
 from typing import Any, Dict, Iterable, Mapping, Optional, Protocol
 
 JsonObject = Dict[str, Any]
+INFERENCE_CONFIG_KEY = "inference.global"
+INFERENCE_SECRET_PREFIX = "aes-256-gcm:"
+INFERENCE_ENCRYPTION_KEY_ENV = "INFERENCE_CONFIG_ENCRYPTION_KEY"
 
 
 @dataclass(frozen=True)
@@ -67,10 +72,45 @@ class RunStore(Protocol):
     def append_event(self, run_id: str, event_type: str, *, node_id: Optional[str] = None, node_info: Optional[JsonObject] = None, output: Optional[JsonObject] = None, payload: Optional[JsonObject] = None) -> None: ...
     def append_log(self, run_id: str, level: str, message: str, metadata: Optional[JsonObject] = None) -> None: ...
     def create_approval(self, run_id: str, node_id: str, prompt: JsonObject) -> str: ...
+    def resolve_inference_config(self) -> JsonObject: ...
 
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _decode_inference_key() -> bytes:
+    raw = os.getenv(INFERENCE_ENCRYPTION_KEY_ENV)
+    if not raw:
+        raise RuntimeError(f"{INFERENCE_ENCRYPTION_KEY_ENV} is required to run live inference")
+    encoded = raw[7:] if raw.startswith("base64:") else raw
+    try:
+        key = bytes.fromhex(encoded) if len(encoded) == 64 and all(char in "0123456789abcdefABCDEF" for char in encoded) else base64.b64decode(encoded)
+    except Exception as exc:
+        raise RuntimeError(f"{INFERENCE_ENCRYPTION_KEY_ENV} must be base64 or 64 hex characters") from exc
+    if len(key) != 32:
+        raise RuntimeError(f"{INFERENCE_ENCRYPTION_KEY_ENV} must decode to 32 bytes")
+    return key
+
+
+def _decrypt_inference_secret(ciphertext: str) -> str:
+    if not ciphertext.startswith(INFERENCE_SECRET_PREFIX):
+        raise RuntimeError("Unsupported inference secret ciphertext format")
+    try:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    except Exception as exc:  # pragma: no cover - dependency install failure
+        raise RuntimeError("cryptography is required to decrypt saved inference API keys") from exc
+    payload = base64.b64decode(ciphertext[len(INFERENCE_SECRET_PREFIX):])
+    if len(payload) <= 28:
+        raise RuntimeError("Inference secret ciphertext is malformed")
+    iv = payload[:12]
+    tag = payload[12:28]
+    encrypted = payload[28:]
+    return AESGCM(_decode_inference_key()).decrypt(iv, encrypted + tag, None).decode("utf-8")
+
+
+def _as_text(value: Any) -> Optional[str]:
+    return value if isinstance(value, str) and value.strip() else None
 
 
 class PostgresRunStore:
@@ -254,6 +294,21 @@ class PostgresRunStore:
                 row = cur.fetchone()
         return str(row["id"])
 
+    def resolve_inference_config(self) -> JsonObject:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT value FROM app_config WHERE key = %s LIMIT 1", (INFERENCE_CONFIG_KEY,))
+                row = cur.fetchone()
+                config = self._json(row["value"]) if row else {}
+                secret_id = config.get("apiKeySecretId")
+                if isinstance(secret_id, str) and secret_id:
+                    cur.execute("SELECT ciphertext FROM secret_records WHERE id = %s LIMIT 1", (secret_id,))
+                    secret = cur.fetchone()
+                    if not secret:
+                        raise RuntimeError("Configured inference API key secret is missing")
+                    config["apiKey"] = _decrypt_inference_secret(str(secret["ciphertext"]))
+                return config
+
 
 class DeterministicWorkflowExecutor:
     def __init__(self, store: RunStore) -> None:
@@ -276,7 +331,7 @@ class DeterministicWorkflowExecutor:
         last_output: JsonObject = dict(resume.get("response", {})) if resume and isinstance(resume.get("response"), dict) else dict(run.input)
 
         self.store.update_run(run.id, "running", started=True)
-        self.store.append_log(run.id, "info", "Worker started run", {"jobId": job.id, "kind": job.kind, "adapter": "deterministic-adk-simulator"})
+        self.store.append_log(run.id, "info", "Worker started run", {"jobId": job.id, "kind": job.kind, "adapter": "robflow-live-openai-compatible"})
         if manifest:
             self.store.append_log(run.id, "debug", "Loaded compiled ADK artifact bundle", {"entrypoint": manifest.get("entrypoint"), "artifactCount": len(files), "compiler": manifest.get("compiler")})
         else:
@@ -311,7 +366,7 @@ class DeterministicWorkflowExecutor:
                 break
             current = self._select_next(node, edges)
 
-        output = {"result": last_output, "visited": visited, "adapter": "deterministic-adk-simulator", "diagnostic": "Live Google ADK model/tool execution is intentionally not performed by this adapter."}
+        output = {"result": last_output, "visited": visited, "adapter": "robflow-live-openai-compatible"}
         self.store.append_event(run.id, "run.completed", output=output)
         self.store.append_log(run.id, "info", "Worker completed run", {"jobId": job.id, "visited": visited})
         self.store.update_run(run.id, "succeeded", output=output, completed=True)
@@ -326,7 +381,7 @@ class DeterministicWorkflowExecutor:
             try:
                 if attempt <= failures_before_success:
                     raise RuntimeError(f"simulated transient failure for {node_id}")
-                return self._simulate_node(node, input_payload, attempt)
+                return self._execute_node(run_id, node_id, node, input_payload, attempt)
             except Exception as exc:
                 if attempt >= max_attempts:
                     self.store.append_log(run_id, "error", "Node failed after retry policy was exhausted", {"nodeId": node_id, "attempt": attempt, "error": str(exc)})
@@ -334,13 +389,15 @@ class DeterministicWorkflowExecutor:
                 self.store.append_log(run_id, "warn", "Node execution failed; retrying", {"nodeId": node_id, "attempt": attempt, "maxAttempts": max_attempts, "error": str(exc)})
         return input_payload
 
-    def _simulate_node(self, node: Mapping[str, Any], input_payload: JsonObject, attempt: int) -> JsonObject:
+    def _execute_node(self, run_id: str, node_id: str, node: Mapping[str, Any], input_payload: JsonObject, attempt: int) -> JsonObject:
         category = node.get("category")
         if category in {"start", "router", "loop", "memory", "transform"}:
             return dict(input_payload)
         if category == "terminal":
             return dict(input_payload)
         runtime = node.get("runtime") if isinstance(node.get("runtime"), dict) else {}
+        if category == "action" and isinstance(runtime.get("model"), dict):
+            return self._execute_llm_node(run_id, node_id, node, input_payload, attempt)
         return {
             **input_payload,
             "nodeId": node.get("id"),
@@ -349,6 +406,97 @@ class DeterministicWorkflowExecutor:
             "attempt": attempt,
             "runtimeKind": runtime.get("kind", "noop"),
         }
+
+    def _execute_llm_node(self, run_id: str, node_id: str, node: Mapping[str, Any], input_payload: JsonObject, attempt: int) -> JsonObject:
+        runtime = node.get("runtime") if isinstance(node.get("runtime"), dict) else {}
+        model_binding = runtime.get("model") if isinstance(runtime.get("model"), dict) else {}
+        config = self.store.resolve_inference_config()
+        base_url = _as_text(config.get("baseUrl"))
+        if not base_url:
+            raise RuntimeError("Inference endpoint base URL is not configured")
+        model = _as_text(model_binding.get("model"))
+        if model in {"unknown", "configure-me"}:
+            model = None
+        model = model or _as_text(config.get("defaultModel"))
+        if not model:
+            raise RuntimeError("No model is configured for this LLM node or global inference settings")
+        instructions = _as_text(model_binding.get("instructions"))
+        request_body: JsonObject = {
+            "model": model,
+            "messages": self._messages_for_request(instructions, input_payload),
+        }
+        if isinstance(model_binding.get("temperature"), (int, float)):
+            request_body["temperature"] = model_binding.get("temperature")
+        self.store.append_event(run_id, "model.requested", node_id=node_id, node_info={"model": model, "provider": model_binding.get("provider")}, payload={"attempt": attempt})
+        response_body = self._post_chat_completion(config, request_body)
+        content = self._extract_message_content(response_body)
+        usage = response_body.get("usage") if isinstance(response_body.get("usage"), dict) else {}
+        output = {
+            **input_payload,
+            "response": content,
+            "model": model,
+            "usage": usage,
+            "nodeId": node.get("id"),
+            "nodeName": node.get("name"),
+        }
+        self.store.append_event(run_id, "model.completed", node_id=node_id, node_info={"model": model}, output={"response": content}, payload={"usage": usage})
+        return output
+
+    def _messages_for_request(self, instructions: Optional[str], input_payload: JsonObject) -> list[JsonObject]:
+        messages: list[JsonObject] = []
+        if instructions:
+            messages.append({"role": "system", "content": instructions})
+        user_text = next((_as_text(input_payload.get(key)) for key in ["userRequest", "user_request", "request", "prompt", "message", "input", "query"] if _as_text(input_payload.get(key))), None)
+        messages.append({"role": "user", "content": user_text or json.dumps(input_payload, ensure_ascii=False)})
+        return messages
+
+    def _post_chat_completion(self, config: Mapping[str, Any], body: JsonObject) -> JsonObject:
+        base_url = str(config["baseUrl"]).rstrip("/")
+        timeout_ms = int(config.get("timeoutMs") or 30000)
+        max_retries = max(0, int(config.get("maxRetries") or 0))
+        extra_headers = config.get("headers") if isinstance(config.get("headers"), dict) else {}
+        headers = {"content-type": "application/json", **{str(name): value for name, value in extra_headers.items() if isinstance(value, str)}}
+        api_key = _as_text(config.get("apiKey"))
+        if api_key:
+            headers["authorization"] = f"Bearer {api_key}"
+        payload = json.dumps(body).encode("utf-8")
+        last_error: Optional[Exception] = None
+        for attempt in range(max_retries + 1):
+            req = request.Request(f"{base_url}/chat/completions", data=payload, headers=headers, method="POST")
+            try:
+                with request.urlopen(req, timeout=timeout_ms / 1000) as response:
+                    decoded = json.loads(response.read().decode("utf-8"))
+                    if not isinstance(decoded, dict):
+                        raise RuntimeError("Inference response must be a JSON object")
+                    return decoded
+            except error.HTTPError as exc:
+                response_text = exc.read().decode("utf-8", errors="replace")[:1000]
+                last_error = RuntimeError(f"Inference request failed with HTTP {exc.code}: {response_text}")
+                if exc.code not in {408, 409, 429, 500, 502, 503, 504} or attempt >= max_retries:
+                    raise last_error
+            except Exception as exc:
+                last_error = exc
+                if attempt >= max_retries:
+                    raise
+            time.sleep(min(2 ** attempt, 8))
+        raise RuntimeError(str(last_error) if last_error else "Inference request failed")
+
+    def _extract_message_content(self, body: Mapping[str, Any]) -> str:
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise RuntimeError("Inference response did not include choices")
+        first = choices[0]
+        if not isinstance(first, dict):
+            raise RuntimeError("Inference choice is malformed")
+        message = first.get("message")
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str):
+                return content
+        text = first.get("text")
+        if isinstance(text, str):
+            return text
+        raise RuntimeError("Inference response did not include message content")
 
     def _start_node_id(self, workflow: Mapping[str, Any], payload: Mapping[str, Any]) -> Optional[str]:
         if isinstance(payload.get("startNodeId"), str):

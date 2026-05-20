@@ -108,20 +108,23 @@ function AgentBuilderInner({ agentId }: { agentId: string }) {
   const [instance, setInstance] = useState<BuilderFlowInstance | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [customNodeTypes, setCustomNodeTypes] = useState<CustomPaletteNode[]>([]);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [assistPrompt, setAssistPrompt] = useState("Draft a support triage workflow with human approval");
   const lastSaved = useRef("");
 
   useEffect(() => {
     async function load() {
-      const [response, nodeTypesResponse] = await Promise.all([fetch(`/api/agents/${agentId}`, { cache: "no-store" }), fetch("/api/node-types", { cache: "no-store" })]);
+      const [response, nodeTypesResponse, inferenceResponse] = await Promise.all([fetch(`/api/agents/${agentId}`, { cache: "no-store" }), fetch("/api/node-types", { cache: "no-store" }), fetch("/api/settings/inference", { cache: "no-store" })]);
       const data = await response.json();
       const nodeTypesData = await nodeTypesResponse.json().catch(() => ({}));
+      const inferenceData = await inferenceResponse.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Unable to load agent");
       setAgent(data.agent);
       setVersion(String(data.version?.version ?? data.graph?.version ?? "1"));
       setNodes(toNodes(data.graph));
       setEdges(data.graph.edges ?? []);
       if (nodeTypesResponse.ok) setCustomNodeTypes((nodeTypesData.nodeTypes ?? []).map((entry: { palette?: CustomPaletteNode | null }) => entry.palette).filter(Boolean));
+      if (inferenceResponse.ok && Array.isArray(inferenceData.models)) setAvailableModels(inferenceData.models.filter((model: unknown): model is string => typeof model === "string"));
       if (data.graph.viewport && instance) requestAnimationFrame(() => instance.setViewport(data.graph.viewport));
       lastSaved.current = JSON.stringify(data.graph);
       setStatus("");
@@ -290,7 +293,7 @@ function AgentBuilderInner({ agentId }: { agentId: string }) {
               {selectedNode.data.nodeType ? <p className="note">Pinned to {selectedNode.data.nodeType.slug} v{selectedNode.data.nodeType.version}</p> : null}
               {selectedNode.data.config?.codeBacked === true ? <p className="status-output">Code-backed node metadata is worker-only; the web app will not execute it.</p> : null}
               <button type="button" onClick={() => void promoteSelectedNode()}>Promote to reusable node type</button>
-              {selectedNode.data.kind === "llm" ? <LlmFields data={selectedNode.data} onChange={(patch) => updateNested("model", patch)} /> : null}
+              {selectedNode.data.kind === "llm" ? <LlmFields data={selectedNode.data} availableModels={availableModels} onChange={(patch) => updateNested("model", patch)} /> : null}
               {selectedNode.data.kind === "tool" ? <ToolFields data={selectedNode.data} onChange={(patch) => updateNested("tool", patch)} /> : null}
               {selectedNode.data.kind === "router" ? <RouterFields data={selectedNode.data} onChange={(patch) => updateNested("router", patch)} onOutputs={(outputs) => updateSelectedNode({ outputs })} /> : null}
               {selectedNode.data.kind === "approval" ? <ApprovalFields data={selectedNode.data} onChange={(patch) => updateNested("humanInput", patch)} /> : null}
@@ -324,9 +327,9 @@ function AgentBuilderInner({ agentId }: { agentId: string }) {
   );
 }
 
-function LlmFields({ data, onChange }: { data: BuilderNodeData; onChange: (patch: Record<string, unknown>) => void }) {
+function LlmFields({ data, availableModels, onChange }: { data: BuilderNodeData; availableModels: string[]; onChange: (patch: Record<string, unknown>) => void }) {
   const model = data.model ?? {};
-  return <><Field label="Provider" value={String(model.provider ?? "")} onChange={(value) => onChange({ provider: value })} /><Field label="Model" value={String(model.model ?? "")} onChange={(value) => onChange({ model: value })} /><Field label="Instructions" textarea value={String(model.instructions ?? "")} onChange={(value) => onChange({ instructions: value })} /></>;
+  return <><Field label="Provider" value={String(model.provider ?? "")} onChange={(value) => onChange({ provider: value })} /><label>Model{availableModels.length > 0 ? <select value={String(model.model ?? "")} onChange={(event) => onChange({ model: event.target.value })}><option value="">Use global default</option>{availableModels.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select> : <input value={String(model.model ?? "")} onChange={(event) => onChange({ model: event.target.value })} placeholder="Use global default" />}</label><Field label="Instructions" textarea value={String(model.instructions ?? "")} onChange={(value) => onChange({ instructions: value })} /></>;
 }
 
 function ToolFields({ data, onChange }: { data: BuilderNodeData; onChange: (patch: Record<string, unknown>) => void }) {

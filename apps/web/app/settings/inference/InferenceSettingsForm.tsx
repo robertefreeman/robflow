@@ -13,6 +13,7 @@ const emptyConfig: RedactedInferenceConfig = {
   headers: {},
   timeoutMs: 30000,
   maxRetries: 2,
+  models: [],
   apiKeySet: false
 };
 
@@ -39,6 +40,7 @@ export function InferenceSettingsForm() {
           return;
         }
         setConfig(body);
+        setModels(body.models ?? []);
         setHeadersJson(JSON.stringify(body.headers, null, 2));
         setStatus(body.baseUrl ? "Settings loaded." : "Configure and save an endpoint before testing.");
       })
@@ -72,6 +74,9 @@ export function InferenceSettingsForm() {
       setApiKey("");
       setHeadersJson(JSON.stringify(body.headers, null, 2));
       setStatus("Settings saved.");
+      if (body.baseUrl && (apiKey || body.apiKeySet)) {
+        await discoverModels("Settings saved. ");
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to save settings");
     } finally {
@@ -87,16 +92,18 @@ export function InferenceSettingsForm() {
     setStatus(result.ok ? `Connection OK (${result.durationMs} ms).` : `Connection failed: ${result.error ?? result.statusText ?? "unknown error"}`);
   }
 
-  async function discoverModels() {
-    setStatus("Discovering models…");
+  async function discoverModels(prefix = "") {
+    setStatus(`${prefix}Discovering models…`);
     const response = await fetch("/api/settings/inference/models");
-    const body = (await response.json()) as { models?: string[]; error?: string } & InferenceTestResult;
+    const body = (await response.json()) as { models?: string[]; defaultModel?: string; error?: string } & InferenceTestResult;
     if (!response.ok) {
-      setStatus(`Model discovery failed: ${body.error ?? body.statusText ?? "unknown error"}`);
+      setStatus(`${prefix}Model discovery failed: ${body.error ?? body.statusText ?? "unknown error"}`);
       return;
     }
-    setModels(body.models ?? []);
-    setStatus(`Discovered ${(body.models ?? []).length} model(s).`);
+    const discovered = body.models ?? [];
+    setModels(discovered);
+    setConfig((current) => ({ ...current, models: discovered, defaultModel: body.defaultModel || current.defaultModel || discovered[0] || "" }));
+    setStatus(`${prefix}Discovered ${discovered.length} model(s).`);
   }
 
   return (
@@ -112,7 +119,14 @@ export function InferenceSettingsForm() {
       </label>
       <label>
         Default model
-        <input name="defaultModel" value={config.defaultModel} onChange={(event) => setConfig({ ...config, defaultModel: event.target.value })} placeholder="gpt-4o-mini" autoComplete="off" />
+        {models.length > 0 ? (
+          <select name="defaultModel" value={config.defaultModel} onChange={(event) => setConfig({ ...config, defaultModel: event.target.value })}>
+            {!config.defaultModel ? <option value="">Select a discovered model</option> : null}
+            {models.map((model) => <option key={model} value={model}>{model}</option>)}
+          </select>
+        ) : (
+          <input name="defaultModel" value={config.defaultModel} onChange={(event) => setConfig({ ...config, defaultModel: event.target.value })} placeholder="gpt-4o-mini" autoComplete="off" />
+        )}
       </label>
       <label>
         Optional headers (JSON)
@@ -131,7 +145,7 @@ export function InferenceSettingsForm() {
       <div className="button-row">
         <button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
         <button type="button" onClick={testConnection}>Test connection</button>
-        <button type="button" onClick={discoverModels}>Discover models</button>
+        <button type="button" onClick={() => void discoverModels()}>Discover models</button>
       </div>
       <output className="status-output">{status}</output>
       {models.length > 0 ? <ul className="model-list">{models.map((model) => <li key={model}>{model}</li>)}</ul> : null}

@@ -1,5 +1,7 @@
 import unittest
+import json
 from typing import Dict, Optional
+from unittest.mock import patch
 
 from robflow_worker_adk.runtime import LeasedJob, RetryBackoff, RunRecord, RunnerProfile, Worker, dead_letter_payload
 
@@ -33,6 +35,14 @@ class FakeStore:
         self.runner_profiles = []
         self.heartbeats = []
         self.reclaims = 0
+        self.inference_config = {
+            "baseUrl": "https://llm.example/v1",
+            "apiKey": "sk-test",
+            "defaultModel": "demo-model",
+            "headers": {},
+            "timeoutMs": 30000,
+            "maxRetries": 0,
+        }
 
     def register_runner(self, profile: RunnerProfile) -> None:
         self.runner_profiles.append(profile)
@@ -74,6 +84,20 @@ class FakeStore:
     def create_approval(self, run_id: str, node_id: str, prompt):
         self.approvals.append((node_id, prompt))
         return "approval-1"
+
+    def resolve_inference_config(self):
+        return self.inference_config
+
+
+class FakeResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return json.dumps({"choices": [{"message": {"content": "Hola mundo"}}], "usage": {"total_tokens": 3}}).encode("utf-8")
 
 
 class WorkerRuntimeTest(unittest.TestCase):
@@ -120,6 +144,35 @@ class WorkerRuntimeTest(unittest.TestCase):
         self.assertEqual(store.jobs["job-3"], "failed")
         self.assertIn("workflowIr", store.error["message"])
 
+    def test_worker_executes_llm_nodes_with_live_openai_compatible_endpoint(self) -> None:
+        workflow = {
+            "nodes": [
+                {"id": "start", "category": "start", "name": "Start"},
+                {
+                    "id": "translate",
+                    "category": "action",
+                    "name": "Translate",
+                    "runtime": {
+                        "kind": "adk",
+                        "model": {"provider": "openai-compatible", "model": "demo-model", "instructions": "Translate to Spanish."},
+                    },
+                },
+                {"id": "end", "category": "terminal", "name": "End"},
+            ],
+            "edges": [{"source": "start", "target": "translate"}, {"source": "translate", "target": "end"}],
+        }
+        job = LeasedJob(id="job-4", kind="manual", payload={"workflowIr": workflow})
+        store = FakeStore(job, workflow)
+
+        with patch("robflow_worker_adk.runtime.request.urlopen", return_value=FakeResponse()) as urlopen:
+            self.assertTrue(Worker(store, worker_id="test").run_once())
+
+        self.assertEqual(store.run_status, "succeeded")
+        self.assertEqual(store.output["result"]["response"], "Hola mundo")
+        self.assertNotIn("diagnostic", store.output)
+        self.assertTrue(any(event[0] == "model.completed" for event in store.events))
+        request_body = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(request_body["messages"][-1]["content"], "hello")
 
     def test_runner_protocol_helpers_are_deterministic(self) -> None:
         backoff = RetryBackoff(max_attempts=4, initial_delay_seconds=0.5, multiplier=2, max_delay_seconds=2)

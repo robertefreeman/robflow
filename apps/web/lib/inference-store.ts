@@ -92,3 +92,24 @@ export async function resolveInferenceConfig(
 export async function testInferenceConnection(repos: PersistenceRepositories = getServerRepositories(), env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch) {
   return fetchOpenAIModels(await resolveInferenceConfig(repos, env), fetchImpl);
 }
+
+export async function discoverAndSaveInferenceModels(
+  repos: PersistenceRepositories = getServerRepositories(),
+  env: Record<string, string | undefined> = process.env,
+  fetchImpl: typeof fetch = fetch
+) {
+  const result = await testInferenceConnection(repos, env, fetchImpl);
+  if (!result.ok) {
+    return result;
+  }
+
+  const existing = await readStoredInferenceConfig(repos);
+  const models = result.models ?? [];
+  const defaultModel = existing.defaultModel || models[0] || "";
+  await repos.appConfig.upsert({
+    key: INFERENCE_CONFIG_KEY,
+    value: { ...existing, models, defaultModel },
+    description: "Global OpenAI-compatible inference endpoint configuration"
+  });
+  return { ...result, models, defaultModel };
+}
