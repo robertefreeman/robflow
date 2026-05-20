@@ -14,7 +14,12 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build --workspaces --if-present
+RUN npm run build -w @robflow/shared \
+  && npm run build -w @robflow/workflow-ir \
+  && npm run build -w @robflow/node-registry \
+  && npm run build -w @robflow/persistence \
+  && npm run build -w @robflow/compiler-adk \
+  && npm run build -w @robflow/web
 
 FROM node:24-alpine AS runner
 WORKDIR /app
