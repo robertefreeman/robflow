@@ -10,7 +10,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <nav className="top-nav" aria-label="Primary navigation">
+          <a href="/">Home</a>
+          <a href="/agents">Agents</a>
+          <a href="/node-types">Node types</a>
+          <a href="/settings/inference">Inference settings</a>
+        </nav>
+        {children}
+      </body>
     </html>
   );
 }

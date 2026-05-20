@@ -13,10 +13,32 @@ body {
   margin: 0;
 }
 
+.top-nav {
+  align-items: center;
+  background: rgba(2, 6, 23, 0.9);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-end;
+  left: 0;
+  padding: 1rem 2rem;
+  position: sticky;
+  right: 0;
+  top: 0;
+  z-index: 20;
+}
+
+.top-nav a {
+  color: #7dd3fc;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .page {
   align-items: center;
   display: flex;
-  min-height: 100vh;
+  min-height: calc(100vh - 4rem);
   padding: 4rem;
 }
 
