@@ -1,0 +1,23 @@
+{
+  "name": "@robflow/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@robflow/compiler-adk": "0.1.0",
+    "@robflow/persistence": "0.1.0",
+    "@robflow/workflow-ir": "0.1.0",
+    "@xyflow/react": "^12.10.2",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "@robflow/node-registry": "0.1.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "run": {
+    "status": "succeeded",
+    "output": {
+      "result": {
+        "prompt": "ping"
+      },
+      "visited": ["start", "end"],
+      "adapter": "robflow-deterministic-evaluator"
+    }
+  },
+  "events": [
+    { "sequence": 1, "eventType": "node.started", "nodeId": "start" },
+    { "sequence": 2, "eventType": "node.completed", "nodeId": "start" },
+    { "sequence": 3, "eventType": "node.started", "nodeId": "end" },
+    { "sequence": 4, "eventType": "node.completed", "nodeId": "end" },
+    { "sequence": 5, "eventType": "run.completed" }
+  ],
+  "logs": [
+    { "sequence": 1, "level": "info", "message": "Evaluation runner started run" },
+    { "sequence": 2, "level": "info", "message": "Evaluation runner completed run" }
+  ]
+}

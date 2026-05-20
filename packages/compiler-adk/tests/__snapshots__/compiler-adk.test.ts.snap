@@ -1,0 +1,4051 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileWorkflowToAdk > matches the golden ADK export snapshot for branch 1`] = `
+{
+  "diagnostics": [
+    {
+      "code": "retry-annotated",
+      "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+      "nodeId": "agent",
+      "severity": "info",
+    },
+    {
+      "code": "dynamic-route-annotated",
+      "message": "Router 'router' was exported as deterministic route metadata and runtime branch placeholders.",
+      "nodeId": "router",
+      "severity": "info",
+    },
+  ],
+  "files": [
+    {
+      "content": """"Generated Robflow ADK 2.0 workflow artifact.
+
+This module is deterministic and side-effect free on import. It declares ADK
+agents where possible and leaves actual model/tool execution to the worker runtime.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from google.adk.agents import Agent, SequentialAgent, LoopAgent, ParallelAgent
+except Exception:
+    class _AdkFallback:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}({self.kwargs!r})"
+
+    class Agent(_AdkFallback):
+        pass
+
+    class SequentialAgent(_AdkFallback):
+        pass
+
+    class LoopAgent(_AdkFallback):
+        pass
+
+    class ParallelAgent(_AdkFallback):
+        pass
+
+
+WORKFLOW = json.loads(r'''{
+  "edges": [
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    },
+    {
+      "id": "agent-router",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "router",
+      "targetHandle": "in"
+    },
+    {
+      "id": "router-approved",
+      "source": "router",
+      "sourceHandle": "approved",
+      "target": "approved-end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "router-default",
+      "source": "router",
+      "sourceHandle": "default",
+      "target": "default-end",
+      "targetHandle": "in"
+    }
+  ],
+  "id": "branch-workflow",
+  "name": "Branch Workflow",
+  "nodes": [
+    {
+      "category": "start",
+      "id": "start",
+      "name": "Start",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "type": "trigger.manual"
+    },
+    {
+      "category": "action",
+      "id": "agent",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "agent",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "runtime": {
+        "entrypoint": "agent.run",
+        "kind": "adk",
+        "model": {
+          "instructions": "Run agent",
+          "model": "gemini-2.0-flash",
+          "provider": "google"
+        },
+        "retry": {
+          "backoff": "fixed",
+          "initialDelayMs": 100,
+          "maxAttempts": 2
+        }
+      },
+      "type": "action.adk-agent"
+    },
+    {
+      "category": "router",
+      "id": "router",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "Router",
+      "outputs": [
+        {
+          "id": "approved"
+        },
+        {
+          "id": "default"
+        }
+      ],
+      "router": {
+        "branches": [
+          {
+            "condition": "approved === true",
+            "handle": "approved"
+          },
+          {
+            "handle": "default",
+            "isDefault": true
+          }
+        ],
+        "requireDefault": true
+      },
+      "type": "router.condition"
+    },
+    {
+      "category": "terminal",
+      "id": "approved-end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "Approved",
+      "type": "terminal.success"
+    },
+    {
+      "category": "terminal",
+      "id": "default-end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "Default",
+      "type": "terminal.success"
+    }
+  ],
+  "schemaVersion": "2025-01",
+  "version": "1"
+}''')
+NODE_DECLARATIONS = json.loads(r'''[
+  {
+    "category": "start",
+    "id": "start",
+    "identifier": "start",
+    "name": "Start",
+    "type": "trigger.manual"
+  },
+  {
+    "category": "action",
+    "entrypoint": "agent.run",
+    "id": "agent",
+    "identifier": "agent",
+    "model": {
+      "instructions": "Run agent",
+      "model": "gemini-2.0-flash",
+      "provider": "google"
+    },
+    "name": "agent",
+    "retry": {
+      "backoff": "fixed",
+      "initialDelayMs": 100,
+      "maxAttempts": 2
+    },
+    "runtimeKind": "adk",
+    "type": "action.adk-agent"
+  },
+  {
+    "category": "router",
+    "id": "router",
+    "identifier": "router",
+    "name": "Router",
+    "type": "router.condition"
+  },
+  {
+    "category": "terminal",
+    "id": "approved-end",
+    "identifier": "approved_end",
+    "name": "Approved",
+    "type": "terminal.success"
+  },
+  {
+    "category": "terminal",
+    "id": "default-end",
+    "identifier": "default_end",
+    "name": "Default",
+    "type": "terminal.success"
+  }
+]''')
+ROUTE_MAP = json.loads(r'''{
+  "edges": [
+    {
+      "id": "agent-router",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "router",
+      "targetHandle": "in"
+    },
+    {
+      "id": "router-approved",
+      "source": "router",
+      "sourceHandle": "approved",
+      "target": "approved-end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "router-default",
+      "source": "router",
+      "sourceHandle": "default",
+      "target": "default-end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "agent": [
+      {
+        "id": "agent-router",
+        "source": "agent",
+        "sourceHandle": "out",
+        "target": "router",
+        "targetHandle": "in"
+      }
+    ],
+    "approved-end": [],
+    "default-end": [],
+    "router": [
+      {
+        "id": "router-approved",
+        "source": "router",
+        "sourceHandle": "approved",
+        "target": "approved-end",
+        "targetHandle": "in"
+      },
+      {
+        "id": "router-default",
+        "source": "router",
+        "sourceHandle": "default",
+        "target": "default-end",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-agent",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "agent",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {
+    "router": {
+      "branches": [
+        {
+          "condition": "approved === true",
+          "handle": "approved"
+        },
+        {
+          "handle": "default",
+          "isDefault": true
+        }
+      ],
+      "requireDefault": true
+    }
+  },
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "approved-end",
+    "default-end"
+  ]
+}''')
+COMPILE_DIAGNOSTICS = json.loads(r'''[
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+    "nodeId": "agent",
+    "severity": "info"
+  },
+  {
+    "code": "dynamic-route-annotated",
+    "message": "Router 'router' was exported as deterministic route metadata and runtime branch placeholders.",
+    "nodeId": "router",
+    "severity": "info"
+  }
+]''')
+
+
+class HumanInputRequired(RuntimeError):
+    def __init__(self, node_id: str, policy: dict[str, Any]) -> None:
+        super().__init__(f"Human input required for {node_id}")
+        self.node_id = node_id
+        self.policy = policy
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+    id: str
+    declaration: dict[str, Any]
+    adk_agent: Any | None = None
+
+
+def _agent_kwargs(declaration: dict[str, Any]) -> dict[str, Any]:
+    model = declaration.get('model') or {}
+    kwargs: dict[str, Any] = {
+        'name': declaration['identifier'],
+        'description': declaration.get('name', declaration['id']),
+    }
+    if model.get('model'):
+        kwargs['model'] = model['model']
+    if model.get('instructions'):
+        kwargs['instruction'] = model['instructions']
+    return kwargs
+
+
+def create_node(declaration: dict[str, Any]) -> RuntimeNode:
+    adk_agent = Agent(**_agent_kwargs(declaration)) if declaration.get('runtimeKind') == 'adk' and declaration.get('model') else None
+    return RuntimeNode(id=declaration['id'], declaration=declaration, adk_agent=adk_agent)
+
+
+RUNTIME_NODES = {declaration['id']: create_node(declaration) for declaration in NODE_DECLARATIONS}
+AGENT_DECLARATIONS = [node.adk_agent for node in RUNTIME_NODES.values() if node.adk_agent is not None]
+
+TEAM_AGENT = None
+
+def build_workflow() -> Any:
+    if TEAM_AGENT is not None:
+        return TEAM_AGENT
+    if AGENT_DECLARATIONS:
+        return SequentialAgent(name="branch_workflow_workflow", sub_agents=AGENT_DECLARATIONS)
+    return {'workflow': WORKFLOW, 'route_map': ROUTE_MAP}
+
+
+root_agent = build_workflow()
+
+
+async def run_workflow(input_payload: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {'input': input_payload, 'visited': []}
+    current = ROUTE_MAP.get('startNodeId')
+    iteration_counts: dict[str, int] = {}
+    while current is not None:
+        node = RUNTIME_NODES[current]
+        state['visited'].append(current)
+        declaration = node.declaration
+        if declaration.get('humanInput'):
+            raise HumanInputRequired(current, declaration['humanInput'])
+        if declaration.get('category') == 'loop':
+            iteration_counts[current] = iteration_counts.get(current, 0) + 1
+            loop_meta = ROUTE_MAP.get('loops', {}).get(current, {})
+            max_iterations = loop_meta.get('maxIterations') or 1
+            if iteration_counts[current] >= max_iterations:
+                exit_handle = loop_meta.get('exitHandle')
+                candidates = [edge for edge in ROUTE_MAP['outgoing'].get(current, []) if edge.get('sourceHandle') == exit_handle] if exit_handle else ROUTE_MAP['outgoing'].get(current, [])
+            else:
+                candidates = ROUTE_MAP['outgoing'].get(current, [])
+        else:
+            candidates = ROUTE_MAP['outgoing'].get(current, [])
+        current = candidates[0]['target'] if candidates else None
+        if current in ROUTE_MAP.get('terminalNodeIds', []):
+            state['visited'].append(current)
+            current = None
+    return state
+
+",
+      "mediaType": "text/x-python",
+      "path": "robflow_adk/workflow.py",
+    },
+    {
+      "content": "{
+  "edges": [
+    {
+      "id": "agent-router",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "router",
+      "targetHandle": "in"
+    },
+    {
+      "id": "router-approved",
+      "source": "router",
+      "sourceHandle": "approved",
+      "target": "approved-end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "router-default",
+      "source": "router",
+      "sourceHandle": "default",
+      "target": "default-end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "agent": [
+      {
+        "id": "agent-router",
+        "source": "agent",
+        "sourceHandle": "out",
+        "target": "router",
+        "targetHandle": "in"
+      }
+    ],
+    "approved-end": [],
+    "default-end": [],
+    "router": [
+      {
+        "id": "router-approved",
+        "source": "router",
+        "sourceHandle": "approved",
+        "target": "approved-end",
+        "targetHandle": "in"
+      },
+      {
+        "id": "router-default",
+        "source": "router",
+        "sourceHandle": "default",
+        "target": "default-end",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-agent",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "agent",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {
+    "router": {
+      "branches": [
+        {
+          "condition": "approved === true",
+          "handle": "approved"
+        },
+        {
+          "handle": "default",
+          "isDefault": true
+        }
+      ],
+      "requireDefault": true
+    }
+  },
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "approved-end",
+    "default-end"
+  ]
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/route_map.json",
+    },
+    {
+      "content": "{
+  "artifacts": [
+    {
+      "kind": "python",
+      "path": "robflow_adk/workflow.py",
+      "sha256": "5a07aa1c75609a652a828d36f37f25ccf8b6b4b3573e22c4d19238ef26f07501"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/route_map.json",
+      "sha256": "2763a1895395330e8e85653d9713a024736c465054ac35a6085838f84c7bf730"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/diagnostics.json",
+      "sha256": "eadd738bdd803ce9472c3dbee19bc6229242e4ac83833ff6332f1784c77faca9"
+    },
+    {
+      "kind": "markdown",
+      "path": "README.md",
+      "sha256": "80fae77d93d915f6555a17583721683b00a5c9217f819481f6820e462ca3292e"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/manifest.json",
+      "sha256": "0e5effafb34ca2e57edb3195df196f888c0cd0ddbecda642fbe5a285ae1948f5"
+    }
+  ],
+  "compiler": {
+    "name": "@robflow/compiler-adk",
+    "target": "adk-python-2.0",
+    "version": "0.1.0"
+  },
+  "diagnostics": {
+    "errors": 0,
+    "infos": 2,
+    "warnings": 0
+  },
+  "entrypoint": "robflow_adk.workflow:root_agent",
+  "routeMap": "robflow_adk/route_map.json",
+  "workflow": {
+    "edgeCount": 4,
+    "id": "branch-workflow",
+    "name": "Branch Workflow",
+    "nodeCount": 5,
+    "schemaVersion": "2025-01",
+    "version": "1"
+  }
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/manifest.json",
+    },
+    {
+      "content": "[
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+    "nodeId": "agent",
+    "severity": "info"
+  },
+  {
+    "code": "dynamic-route-annotated",
+    "message": "Router 'router' was exported as deterministic route metadata and runtime branch placeholders.",
+    "nodeId": "router",
+    "severity": "info"
+  }
+]
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/diagnostics.json",
+    },
+    {
+      "content": "# Branch Workflow ADK Export
+
+Workflow \`branch-workflow\` version \`1\` compiled for ADK Python 2.0-compatible workers.
+
+## Entrypoint
+
+\`robflow_adk.workflow:root_agent\` declares the import-safe ADK artifact. \`run_workflow\` is a deterministic placeholder executor for syntax/import validation and worker integration tests.
+
+## Diagnostics
+
+- errors: 0
+- warnings: 0
+- infos: 2
+",
+      "mediaType": "text/markdown",
+      "path": "README.md",
+    },
+  ],
+  "manifest": {
+    "artifacts": [
+      {
+        "kind": "python",
+        "path": "robflow_adk/workflow.py",
+        "sha256": "5a07aa1c75609a652a828d36f37f25ccf8b6b4b3573e22c4d19238ef26f07501",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/route_map.json",
+        "sha256": "2763a1895395330e8e85653d9713a024736c465054ac35a6085838f84c7bf730",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/diagnostics.json",
+        "sha256": "eadd738bdd803ce9472c3dbee19bc6229242e4ac83833ff6332f1784c77faca9",
+      },
+      {
+        "kind": "markdown",
+        "path": "README.md",
+        "sha256": "80fae77d93d915f6555a17583721683b00a5c9217f819481f6820e462ca3292e",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/manifest.json",
+        "sha256": "0e5effafb34ca2e57edb3195df196f888c0cd0ddbecda642fbe5a285ae1948f5",
+      },
+    ],
+    "compiler": {
+      "name": "@robflow/compiler-adk",
+      "target": "adk-python-2.0",
+      "version": "0.1.0",
+    },
+    "diagnostics": {
+      "errors": 0,
+      "infos": 2,
+      "warnings": 0,
+    },
+    "entrypoint": "robflow_adk.workflow:root_agent",
+    "routeMap": "robflow_adk/route_map.json",
+    "workflow": {
+      "edgeCount": 4,
+      "id": "branch-workflow",
+      "name": "Branch Workflow",
+      "nodeCount": 5,
+      "schemaVersion": "2025-01",
+      "version": "1",
+    },
+  },
+}
+`;
+
+exports[`compileWorkflowToAdk > matches the golden ADK export snapshot for collaborative 1`] = `
+{
+  "diagnostics": [
+    {
+      "code": "validation-error",
+      "edgeId": "researcher-writer",
+      "handleId": undefined,
+      "message": "schema-incompatible: Edge 'researcher-writer' connects incompatible schemas.",
+      "nodeId": undefined,
+      "severity": "error",
+    },
+    {
+      "code": "retry-annotated",
+      "message": "Retry policy for 'researcher' was exported as metadata for the worker runtime.",
+      "nodeId": "researcher",
+      "severity": "info",
+    },
+    {
+      "code": "retry-annotated",
+      "message": "Retry policy for 'writer' was exported as metadata for the worker runtime.",
+      "nodeId": "writer",
+      "severity": "info",
+    },
+    {
+      "code": "collaboration-annotated",
+      "message": "Multiple ADK model nodes were exported as a collaborative ParallelAgent team declaration.",
+      "severity": "info",
+    },
+  ],
+  "files": [
+    {
+      "content": """"Generated Robflow ADK 2.0 workflow artifact.
+
+This module is deterministic and side-effect free on import. It declares ADK
+agents where possible and leaves actual model/tool execution to the worker runtime.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from google.adk.agents import Agent, SequentialAgent, LoopAgent, ParallelAgent
+except Exception:
+    class _AdkFallback:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}({self.kwargs!r})"
+
+    class Agent(_AdkFallback):
+        pass
+
+    class SequentialAgent(_AdkFallback):
+        pass
+
+    class LoopAgent(_AdkFallback):
+        pass
+
+    class ParallelAgent(_AdkFallback):
+        pass
+
+
+WORKFLOW = json.loads(r'''{
+  "edges": [
+    {
+      "id": "start-researcher",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "researcher",
+      "targetHandle": "in"
+    },
+    {
+      "id": "researcher-writer",
+      "source": "researcher",
+      "sourceHandle": "out",
+      "target": "writer",
+      "targetHandle": "in"
+    },
+    {
+      "id": "writer-end",
+      "source": "writer",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "id": "collaborative-workflow",
+  "name": "Collaborative Workflow",
+  "nodes": [
+    {
+      "category": "start",
+      "id": "start",
+      "name": "Start",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "type": "trigger.manual"
+    },
+    {
+      "category": "action",
+      "id": "researcher",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "researcher",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "runtime": {
+        "entrypoint": "researcher.run",
+        "kind": "adk",
+        "model": {
+          "instructions": "Run researcher",
+          "model": "gemini-2.0-flash",
+          "provider": "google"
+        },
+        "retry": {
+          "backoff": "fixed",
+          "initialDelayMs": 100,
+          "maxAttempts": 2
+        }
+      },
+      "type": "action.adk-agent"
+    },
+    {
+      "category": "action",
+      "id": "writer",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "writer",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "runtime": {
+        "entrypoint": "writer.run",
+        "kind": "adk",
+        "model": {
+          "instructions": "Run writer",
+          "model": "gemini-2.0-pro",
+          "provider": "google"
+        },
+        "retry": {
+          "backoff": "fixed",
+          "initialDelayMs": 100,
+          "maxAttempts": 2
+        }
+      },
+      "type": "action.adk-agent"
+    },
+    {
+      "category": "terminal",
+      "id": "end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "End",
+      "type": "terminal.success"
+    }
+  ],
+  "schemaVersion": "2025-01",
+  "version": "1"
+}''')
+NODE_DECLARATIONS = json.loads(r'''[
+  {
+    "category": "start",
+    "id": "start",
+    "identifier": "start",
+    "name": "Start",
+    "type": "trigger.manual"
+  },
+  {
+    "category": "action",
+    "entrypoint": "researcher.run",
+    "id": "researcher",
+    "identifier": "researcher",
+    "model": {
+      "instructions": "Run researcher",
+      "model": "gemini-2.0-flash",
+      "provider": "google"
+    },
+    "name": "researcher",
+    "retry": {
+      "backoff": "fixed",
+      "initialDelayMs": 100,
+      "maxAttempts": 2
+    },
+    "runtimeKind": "adk",
+    "type": "action.adk-agent"
+  },
+  {
+    "category": "action",
+    "entrypoint": "writer.run",
+    "id": "writer",
+    "identifier": "writer",
+    "model": {
+      "instructions": "Run writer",
+      "model": "gemini-2.0-pro",
+      "provider": "google"
+    },
+    "name": "writer",
+    "retry": {
+      "backoff": "fixed",
+      "initialDelayMs": 100,
+      "maxAttempts": 2
+    },
+    "runtimeKind": "adk",
+    "type": "action.adk-agent"
+  },
+  {
+    "category": "terminal",
+    "id": "end",
+    "identifier": "end",
+    "name": "End",
+    "type": "terminal.success"
+  }
+]''')
+ROUTE_MAP = json.loads(r'''{
+  "edges": [
+    {
+      "id": "researcher-writer",
+      "source": "researcher",
+      "sourceHandle": "out",
+      "target": "writer",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-researcher",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "researcher",
+      "targetHandle": "in"
+    },
+    {
+      "id": "writer-end",
+      "source": "writer",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "end": [],
+    "researcher": [
+      {
+        "id": "researcher-writer",
+        "source": "researcher",
+        "sourceHandle": "out",
+        "target": "writer",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-researcher",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "researcher",
+        "targetHandle": "in"
+      }
+    ],
+    "writer": [
+      {
+        "id": "writer-end",
+        "source": "writer",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}''')
+COMPILE_DIAGNOSTICS = json.loads(r'''[
+  {
+    "code": "validation-error",
+    "edgeId": "researcher-writer",
+    "message": "schema-incompatible: Edge 'researcher-writer' connects incompatible schemas.",
+    "severity": "error"
+  },
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'researcher' was exported as metadata for the worker runtime.",
+    "nodeId": "researcher",
+    "severity": "info"
+  },
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'writer' was exported as metadata for the worker runtime.",
+    "nodeId": "writer",
+    "severity": "info"
+  },
+  {
+    "code": "collaboration-annotated",
+    "message": "Multiple ADK model nodes were exported as a collaborative ParallelAgent team declaration.",
+    "severity": "info"
+  }
+]''')
+
+
+class HumanInputRequired(RuntimeError):
+    def __init__(self, node_id: str, policy: dict[str, Any]) -> None:
+        super().__init__(f"Human input required for {node_id}")
+        self.node_id = node_id
+        self.policy = policy
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+    id: str
+    declaration: dict[str, Any]
+    adk_agent: Any | None = None
+
+
+def _agent_kwargs(declaration: dict[str, Any]) -> dict[str, Any]:
+    model = declaration.get('model') or {}
+    kwargs: dict[str, Any] = {
+        'name': declaration['identifier'],
+        'description': declaration.get('name', declaration['id']),
+    }
+    if model.get('model'):
+        kwargs['model'] = model['model']
+    if model.get('instructions'):
+        kwargs['instruction'] = model['instructions']
+    return kwargs
+
+
+def create_node(declaration: dict[str, Any]) -> RuntimeNode:
+    adk_agent = Agent(**_agent_kwargs(declaration)) if declaration.get('runtimeKind') == 'adk' and declaration.get('model') else None
+    return RuntimeNode(id=declaration['id'], declaration=declaration, adk_agent=adk_agent)
+
+
+RUNTIME_NODES = {declaration['id']: create_node(declaration) for declaration in NODE_DECLARATIONS}
+AGENT_DECLARATIONS = [node.adk_agent for node in RUNTIME_NODES.values() if node.adk_agent is not None]
+
+# Collaborative agent team declaration synthesized from multiple ADK model nodes.
+TEAM_AGENT = ParallelAgent(name="collaborative_workflow_team", sub_agents=AGENT_DECLARATIONS) if len(AGENT_DECLARATIONS) > 1 else None
+
+def build_workflow() -> Any:
+    if TEAM_AGENT is not None:
+        return TEAM_AGENT
+    if AGENT_DECLARATIONS:
+        return SequentialAgent(name="collaborative_workflow_workflow", sub_agents=AGENT_DECLARATIONS)
+    return {'workflow': WORKFLOW, 'route_map': ROUTE_MAP}
+
+
+root_agent = build_workflow()
+
+
+async def run_workflow(input_payload: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {'input': input_payload, 'visited': []}
+    current = ROUTE_MAP.get('startNodeId')
+    iteration_counts: dict[str, int] = {}
+    while current is not None:
+        node = RUNTIME_NODES[current]
+        state['visited'].append(current)
+        declaration = node.declaration
+        if declaration.get('humanInput'):
+            raise HumanInputRequired(current, declaration['humanInput'])
+        if declaration.get('category') == 'loop':
+            iteration_counts[current] = iteration_counts.get(current, 0) + 1
+            loop_meta = ROUTE_MAP.get('loops', {}).get(current, {})
+            max_iterations = loop_meta.get('maxIterations') or 1
+            if iteration_counts[current] >= max_iterations:
+                exit_handle = loop_meta.get('exitHandle')
+                candidates = [edge for edge in ROUTE_MAP['outgoing'].get(current, []) if edge.get('sourceHandle') == exit_handle] if exit_handle else ROUTE_MAP['outgoing'].get(current, [])
+            else:
+                candidates = ROUTE_MAP['outgoing'].get(current, [])
+        else:
+            candidates = ROUTE_MAP['outgoing'].get(current, [])
+        current = candidates[0]['target'] if candidates else None
+        if current in ROUTE_MAP.get('terminalNodeIds', []):
+            state['visited'].append(current)
+            current = None
+    return state
+
+",
+      "mediaType": "text/x-python",
+      "path": "robflow_adk/workflow.py",
+    },
+    {
+      "content": "{
+  "edges": [
+    {
+      "id": "researcher-writer",
+      "source": "researcher",
+      "sourceHandle": "out",
+      "target": "writer",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-researcher",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "researcher",
+      "targetHandle": "in"
+    },
+    {
+      "id": "writer-end",
+      "source": "writer",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "end": [],
+    "researcher": [
+      {
+        "id": "researcher-writer",
+        "source": "researcher",
+        "sourceHandle": "out",
+        "target": "writer",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-researcher",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "researcher",
+        "targetHandle": "in"
+      }
+    ],
+    "writer": [
+      {
+        "id": "writer-end",
+        "source": "writer",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/route_map.json",
+    },
+    {
+      "content": "{
+  "artifacts": [
+    {
+      "kind": "python",
+      "path": "robflow_adk/workflow.py",
+      "sha256": "92f62df936127a0e43de86b8257b4835df0dd228a0edb205fc8875672f95bb46"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/route_map.json",
+      "sha256": "7a4e1a4f6494c898098d1feded8c487ac58be98165cda08f328f5790f44a0ffa"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/diagnostics.json",
+      "sha256": "03c596ad3d52d6c660bd28faf0774ef7854ad9d5bd6162dfd1295bc2e62a5a48"
+    },
+    {
+      "kind": "markdown",
+      "path": "README.md",
+      "sha256": "ca34e4b9876a3038b7381ea703cee88fb0c4750a1adec1ca3e1b71ecb0979505"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/manifest.json",
+      "sha256": "52b2ec61dd76161133f25d5f44051344dc15abd4dbfe93f3a6f4e850e24a7785"
+    }
+  ],
+  "compiler": {
+    "name": "@robflow/compiler-adk",
+    "target": "adk-python-2.0",
+    "version": "0.1.0"
+  },
+  "diagnostics": {
+    "errors": 1,
+    "infos": 3,
+    "warnings": 0
+  },
+  "entrypoint": "robflow_adk.workflow:root_agent",
+  "routeMap": "robflow_adk/route_map.json",
+  "workflow": {
+    "edgeCount": 3,
+    "id": "collaborative-workflow",
+    "name": "Collaborative Workflow",
+    "nodeCount": 4,
+    "schemaVersion": "2025-01",
+    "version": "1"
+  }
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/manifest.json",
+    },
+    {
+      "content": "[
+  {
+    "code": "validation-error",
+    "edgeId": "researcher-writer",
+    "message": "schema-incompatible: Edge 'researcher-writer' connects incompatible schemas.",
+    "severity": "error"
+  },
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'researcher' was exported as metadata for the worker runtime.",
+    "nodeId": "researcher",
+    "severity": "info"
+  },
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'writer' was exported as metadata for the worker runtime.",
+    "nodeId": "writer",
+    "severity": "info"
+  },
+  {
+    "code": "collaboration-annotated",
+    "message": "Multiple ADK model nodes were exported as a collaborative ParallelAgent team declaration.",
+    "severity": "info"
+  }
+]
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/diagnostics.json",
+    },
+    {
+      "content": "# Collaborative Workflow ADK Export
+
+Workflow \`collaborative-workflow\` version \`1\` compiled for ADK Python 2.0-compatible workers.
+
+## Entrypoint
+
+\`robflow_adk.workflow:root_agent\` declares the import-safe ADK artifact. \`run_workflow\` is a deterministic placeholder executor for syntax/import validation and worker integration tests.
+
+## Diagnostics
+
+- errors: 1
+- warnings: 0
+- infos: 3
+",
+      "mediaType": "text/markdown",
+      "path": "README.md",
+    },
+  ],
+  "manifest": {
+    "artifacts": [
+      {
+        "kind": "python",
+        "path": "robflow_adk/workflow.py",
+        "sha256": "92f62df936127a0e43de86b8257b4835df0dd228a0edb205fc8875672f95bb46",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/route_map.json",
+        "sha256": "7a4e1a4f6494c898098d1feded8c487ac58be98165cda08f328f5790f44a0ffa",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/diagnostics.json",
+        "sha256": "03c596ad3d52d6c660bd28faf0774ef7854ad9d5bd6162dfd1295bc2e62a5a48",
+      },
+      {
+        "kind": "markdown",
+        "path": "README.md",
+        "sha256": "ca34e4b9876a3038b7381ea703cee88fb0c4750a1adec1ca3e1b71ecb0979505",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/manifest.json",
+        "sha256": "52b2ec61dd76161133f25d5f44051344dc15abd4dbfe93f3a6f4e850e24a7785",
+      },
+    ],
+    "compiler": {
+      "name": "@robflow/compiler-adk",
+      "target": "adk-python-2.0",
+      "version": "0.1.0",
+    },
+    "diagnostics": {
+      "errors": 1,
+      "infos": 3,
+      "warnings": 0,
+    },
+    "entrypoint": "robflow_adk.workflow:root_agent",
+    "routeMap": "robflow_adk/route_map.json",
+    "workflow": {
+      "edgeCount": 3,
+      "id": "collaborative-workflow",
+      "name": "Collaborative Workflow",
+      "nodeCount": 4,
+      "schemaVersion": "2025-01",
+      "version": "1",
+    },
+  },
+}
+`;
+
+exports[`compileWorkflowToAdk > matches the golden ADK export snapshot for hitl 1`] = `
+{
+  "diagnostics": [
+    {
+      "code": "retry-annotated",
+      "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+      "nodeId": "agent",
+      "severity": "info",
+    },
+    {
+      "code": "hitl-placeholder",
+      "message": "Human-in-the-loop node 'review' was exported with a resumable placeholder marker.",
+      "nodeId": "review",
+      "severity": "info",
+    },
+  ],
+  "files": [
+    {
+      "content": """"Generated Robflow ADK 2.0 workflow artifact.
+
+This module is deterministic and side-effect free on import. It declares ADK
+agents where possible and leaves actual model/tool execution to the worker runtime.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from google.adk.agents import Agent, SequentialAgent, LoopAgent, ParallelAgent
+except Exception:
+    class _AdkFallback:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}({self.kwargs!r})"
+
+    class Agent(_AdkFallback):
+        pass
+
+    class SequentialAgent(_AdkFallback):
+        pass
+
+    class LoopAgent(_AdkFallback):
+        pass
+
+    class ParallelAgent(_AdkFallback):
+        pass
+
+
+WORKFLOW = json.loads(r'''{
+  "edges": [
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    },
+    {
+      "id": "agent-review",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "review",
+      "targetHandle": "in"
+    },
+    {
+      "id": "review-end",
+      "source": "review",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "id": "hitl-workflow",
+  "name": "Hitl Workflow",
+  "nodes": [
+    {
+      "category": "start",
+      "id": "start",
+      "name": "Start",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "type": "trigger.manual"
+    },
+    {
+      "category": "action",
+      "id": "agent",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "agent",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "runtime": {
+        "entrypoint": "agent.run",
+        "kind": "adk",
+        "model": {
+          "instructions": "Run agent",
+          "model": "gemini-2.0-flash",
+          "provider": "google"
+        },
+        "retry": {
+          "backoff": "fixed",
+          "initialDelayMs": 100,
+          "maxAttempts": 2
+        }
+      },
+      "type": "action.adk-agent"
+    },
+    {
+      "category": "human-input",
+      "humanInput": {
+        "assignedRole": "reviewer",
+        "prompt": "Approve answer",
+        "resumable": true,
+        "resumeTokenPath": "$.resume.token"
+      },
+      "id": "review",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "Review",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "type": "human.approval"
+    },
+    {
+      "category": "terminal",
+      "id": "end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "End",
+      "type": "terminal.success"
+    }
+  ],
+  "schemaVersion": "2025-01",
+  "version": "1"
+}''')
+NODE_DECLARATIONS = json.loads(r'''[
+  {
+    "category": "start",
+    "id": "start",
+    "identifier": "start",
+    "name": "Start",
+    "type": "trigger.manual"
+  },
+  {
+    "category": "action",
+    "entrypoint": "agent.run",
+    "id": "agent",
+    "identifier": "agent",
+    "model": {
+      "instructions": "Run agent",
+      "model": "gemini-2.0-flash",
+      "provider": "google"
+    },
+    "name": "agent",
+    "retry": {
+      "backoff": "fixed",
+      "initialDelayMs": 100,
+      "maxAttempts": 2
+    },
+    "runtimeKind": "adk",
+    "type": "action.adk-agent"
+  },
+  {
+    "category": "human-input",
+    "humanInput": {
+      "assignedRole": "reviewer",
+      "prompt": "Approve answer",
+      "resumable": true,
+      "resumeTokenPath": "$.resume.token"
+    },
+    "id": "review",
+    "identifier": "review",
+    "name": "Review",
+    "type": "human.approval"
+  },
+  {
+    "category": "terminal",
+    "id": "end",
+    "identifier": "end",
+    "name": "End",
+    "type": "terminal.success"
+  }
+]''')
+ROUTE_MAP = json.loads(r'''{
+  "edges": [
+    {
+      "id": "agent-review",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "review",
+      "targetHandle": "in"
+    },
+    {
+      "id": "review-end",
+      "source": "review",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "agent": [
+      {
+        "id": "agent-review",
+        "source": "agent",
+        "sourceHandle": "out",
+        "target": "review",
+        "targetHandle": "in"
+      }
+    ],
+    "end": [],
+    "review": [
+      {
+        "id": "review-end",
+        "source": "review",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-agent",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "agent",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}''')
+COMPILE_DIAGNOSTICS = json.loads(r'''[
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+    "nodeId": "agent",
+    "severity": "info"
+  },
+  {
+    "code": "hitl-placeholder",
+    "message": "Human-in-the-loop node 'review' was exported with a resumable placeholder marker.",
+    "nodeId": "review",
+    "severity": "info"
+  }
+]''')
+
+
+class HumanInputRequired(RuntimeError):
+    def __init__(self, node_id: str, policy: dict[str, Any]) -> None:
+        super().__init__(f"Human input required for {node_id}")
+        self.node_id = node_id
+        self.policy = policy
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+    id: str
+    declaration: dict[str, Any]
+    adk_agent: Any | None = None
+
+
+def _agent_kwargs(declaration: dict[str, Any]) -> dict[str, Any]:
+    model = declaration.get('model') or {}
+    kwargs: dict[str, Any] = {
+        'name': declaration['identifier'],
+        'description': declaration.get('name', declaration['id']),
+    }
+    if model.get('model'):
+        kwargs['model'] = model['model']
+    if model.get('instructions'):
+        kwargs['instruction'] = model['instructions']
+    return kwargs
+
+
+def create_node(declaration: dict[str, Any]) -> RuntimeNode:
+    adk_agent = Agent(**_agent_kwargs(declaration)) if declaration.get('runtimeKind') == 'adk' and declaration.get('model') else None
+    return RuntimeNode(id=declaration['id'], declaration=declaration, adk_agent=adk_agent)
+
+
+RUNTIME_NODES = {declaration['id']: create_node(declaration) for declaration in NODE_DECLARATIONS}
+AGENT_DECLARATIONS = [node.adk_agent for node in RUNTIME_NODES.values() if node.adk_agent is not None]
+
+TEAM_AGENT = None
+
+def build_workflow() -> Any:
+    if TEAM_AGENT is not None:
+        return TEAM_AGENT
+    if AGENT_DECLARATIONS:
+        return SequentialAgent(name="hitl_workflow_workflow", sub_agents=AGENT_DECLARATIONS)
+    return {'workflow': WORKFLOW, 'route_map': ROUTE_MAP}
+
+
+root_agent = build_workflow()
+
+
+async def run_workflow(input_payload: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {'input': input_payload, 'visited': []}
+    current = ROUTE_MAP.get('startNodeId')
+    iteration_counts: dict[str, int] = {}
+    while current is not None:
+        node = RUNTIME_NODES[current]
+        state['visited'].append(current)
+        declaration = node.declaration
+        if declaration.get('humanInput'):
+            raise HumanInputRequired(current, declaration['humanInput'])
+        if declaration.get('category') == 'loop':
+            iteration_counts[current] = iteration_counts.get(current, 0) + 1
+            loop_meta = ROUTE_MAP.get('loops', {}).get(current, {})
+            max_iterations = loop_meta.get('maxIterations') or 1
+            if iteration_counts[current] >= max_iterations:
+                exit_handle = loop_meta.get('exitHandle')
+                candidates = [edge for edge in ROUTE_MAP['outgoing'].get(current, []) if edge.get('sourceHandle') == exit_handle] if exit_handle else ROUTE_MAP['outgoing'].get(current, [])
+            else:
+                candidates = ROUTE_MAP['outgoing'].get(current, [])
+        else:
+            candidates = ROUTE_MAP['outgoing'].get(current, [])
+        current = candidates[0]['target'] if candidates else None
+        if current in ROUTE_MAP.get('terminalNodeIds', []):
+            state['visited'].append(current)
+            current = None
+    return state
+
+",
+      "mediaType": "text/x-python",
+      "path": "robflow_adk/workflow.py",
+    },
+    {
+      "content": "{
+  "edges": [
+    {
+      "id": "agent-review",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "review",
+      "targetHandle": "in"
+    },
+    {
+      "id": "review-end",
+      "source": "review",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "agent": [
+      {
+        "id": "agent-review",
+        "source": "agent",
+        "sourceHandle": "out",
+        "target": "review",
+        "targetHandle": "in"
+      }
+    ],
+    "end": [],
+    "review": [
+      {
+        "id": "review-end",
+        "source": "review",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-agent",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "agent",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/route_map.json",
+    },
+    {
+      "content": "{
+  "artifacts": [
+    {
+      "kind": "python",
+      "path": "robflow_adk/workflow.py",
+      "sha256": "2519d95429fe8d17762453a49a0b666dc8296f7a4afab65e677339ca39a426df"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/route_map.json",
+      "sha256": "aceea77db15db71477922478d8d2e5cff0f4e88e37b88dc61684c6e394e9c496"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/diagnostics.json",
+      "sha256": "8e7c41f6e3fbb3791388dbad56d8b4d9d92a1fdfc8276a390c37fc5c1cf403ea"
+    },
+    {
+      "kind": "markdown",
+      "path": "README.md",
+      "sha256": "704a3e2a29d358ebd514208abb0ea7b0f54cead0213fa18d9430aea2c7a3d48b"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/manifest.json",
+      "sha256": "44c1a90cea3bae1cbc0ac7e9c8fc4492a5dd2d666c0fe5ea8f9fc2b046bab03d"
+    }
+  ],
+  "compiler": {
+    "name": "@robflow/compiler-adk",
+    "target": "adk-python-2.0",
+    "version": "0.1.0"
+  },
+  "diagnostics": {
+    "errors": 0,
+    "infos": 2,
+    "warnings": 0
+  },
+  "entrypoint": "robflow_adk.workflow:root_agent",
+  "routeMap": "robflow_adk/route_map.json",
+  "workflow": {
+    "edgeCount": 3,
+    "id": "hitl-workflow",
+    "name": "Hitl Workflow",
+    "nodeCount": 4,
+    "schemaVersion": "2025-01",
+    "version": "1"
+  }
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/manifest.json",
+    },
+    {
+      "content": "[
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+    "nodeId": "agent",
+    "severity": "info"
+  },
+  {
+    "code": "hitl-placeholder",
+    "message": "Human-in-the-loop node 'review' was exported with a resumable placeholder marker.",
+    "nodeId": "review",
+    "severity": "info"
+  }
+]
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/diagnostics.json",
+    },
+    {
+      "content": "# Hitl Workflow ADK Export
+
+Workflow \`hitl-workflow\` version \`1\` compiled for ADK Python 2.0-compatible workers.
+
+## Entrypoint
+
+\`robflow_adk.workflow:root_agent\` declares the import-safe ADK artifact. \`run_workflow\` is a deterministic placeholder executor for syntax/import validation and worker integration tests.
+
+## Diagnostics
+
+- errors: 0
+- warnings: 0
+- infos: 2
+",
+      "mediaType": "text/markdown",
+      "path": "README.md",
+    },
+  ],
+  "manifest": {
+    "artifacts": [
+      {
+        "kind": "python",
+        "path": "robflow_adk/workflow.py",
+        "sha256": "2519d95429fe8d17762453a49a0b666dc8296f7a4afab65e677339ca39a426df",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/route_map.json",
+        "sha256": "aceea77db15db71477922478d8d2e5cff0f4e88e37b88dc61684c6e394e9c496",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/diagnostics.json",
+        "sha256": "8e7c41f6e3fbb3791388dbad56d8b4d9d92a1fdfc8276a390c37fc5c1cf403ea",
+      },
+      {
+        "kind": "markdown",
+        "path": "README.md",
+        "sha256": "704a3e2a29d358ebd514208abb0ea7b0f54cead0213fa18d9430aea2c7a3d48b",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/manifest.json",
+        "sha256": "44c1a90cea3bae1cbc0ac7e9c8fc4492a5dd2d666c0fe5ea8f9fc2b046bab03d",
+      },
+    ],
+    "compiler": {
+      "name": "@robflow/compiler-adk",
+      "target": "adk-python-2.0",
+      "version": "0.1.0",
+    },
+    "diagnostics": {
+      "errors": 0,
+      "infos": 2,
+      "warnings": 0,
+    },
+    "entrypoint": "robflow_adk.workflow:root_agent",
+    "routeMap": "robflow_adk/route_map.json",
+    "workflow": {
+      "edgeCount": 3,
+      "id": "hitl-workflow",
+      "name": "Hitl Workflow",
+      "nodeCount": 4,
+      "schemaVersion": "2025-01",
+      "version": "1",
+    },
+  },
+}
+`;
+
+exports[`compileWorkflowToAdk > matches the golden ADK export snapshot for loop 1`] = `
+{
+  "diagnostics": [
+    {
+      "code": "loop-annotated",
+      "message": "Loop 'loop' was exported with condition and iteration guard metadata.",
+      "nodeId": "loop",
+      "severity": "info",
+    },
+  ],
+  "files": [
+    {
+      "content": """"Generated Robflow ADK 2.0 workflow artifact.
+
+This module is deterministic and side-effect free on import. It declares ADK
+agents where possible and leaves actual model/tool execution to the worker runtime.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from google.adk.agents import Agent, SequentialAgent, LoopAgent, ParallelAgent
+except Exception:
+    class _AdkFallback:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}({self.kwargs!r})"
+
+    class Agent(_AdkFallback):
+        pass
+
+    class SequentialAgent(_AdkFallback):
+        pass
+
+    class LoopAgent(_AdkFallback):
+        pass
+
+    class ParallelAgent(_AdkFallback):
+        pass
+
+
+WORKFLOW = json.loads(r'''{
+  "edges": [
+    {
+      "id": "start-loop",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "loop",
+      "targetHandle": "in"
+    },
+    {
+      "id": "loop-again",
+      "source": "loop",
+      "sourceHandle": "again",
+      "target": "loop",
+      "targetHandle": "in"
+    },
+    {
+      "id": "loop-end",
+      "source": "loop",
+      "sourceHandle": "done",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "id": "loop-workflow",
+  "name": "Loop Workflow",
+  "nodes": [
+    {
+      "category": "start",
+      "id": "start",
+      "name": "Start",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "type": "trigger.manual"
+    },
+    {
+      "category": "loop",
+      "id": "loop",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "loop": {
+        "allowCycles": true,
+        "condition": "state.hasMore",
+        "exitHandle": "done",
+        "maxIterations": 3
+      },
+      "name": "Loop",
+      "outputs": [
+        {
+          "id": "again"
+        },
+        {
+          "id": "done"
+        }
+      ],
+      "type": "loop.each"
+    },
+    {
+      "category": "terminal",
+      "id": "end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "End",
+      "type": "terminal.success"
+    }
+  ],
+  "schemaVersion": "2025-01",
+  "version": "1"
+}''')
+NODE_DECLARATIONS = json.loads(r'''[
+  {
+    "category": "start",
+    "id": "start",
+    "identifier": "start",
+    "name": "Start",
+    "type": "trigger.manual"
+  },
+  {
+    "category": "loop",
+    "id": "loop",
+    "identifier": "loop",
+    "name": "Loop",
+    "type": "loop.each"
+  },
+  {
+    "category": "terminal",
+    "id": "end",
+    "identifier": "end",
+    "name": "End",
+    "type": "terminal.success"
+  }
+]''')
+ROUTE_MAP = json.loads(r'''{
+  "edges": [
+    {
+      "id": "loop-again",
+      "source": "loop",
+      "sourceHandle": "again",
+      "target": "loop",
+      "targetHandle": "in"
+    },
+    {
+      "id": "loop-end",
+      "source": "loop",
+      "sourceHandle": "done",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-loop",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "loop",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {
+    "loop": {
+      "allowCycles": true,
+      "condition": "state.hasMore",
+      "exitHandle": "done",
+      "maxIterations": 3
+    }
+  },
+  "outgoing": {
+    "end": [],
+    "loop": [
+      {
+        "id": "loop-again",
+        "source": "loop",
+        "sourceHandle": "again",
+        "target": "loop",
+        "targetHandle": "in"
+      },
+      {
+        "id": "loop-end",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-loop",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "loop",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}''')
+COMPILE_DIAGNOSTICS = json.loads(r'''[
+  {
+    "code": "loop-annotated",
+    "message": "Loop 'loop' was exported with condition and iteration guard metadata.",
+    "nodeId": "loop",
+    "severity": "info"
+  }
+]''')
+
+
+class HumanInputRequired(RuntimeError):
+    def __init__(self, node_id: str, policy: dict[str, Any]) -> None:
+        super().__init__(f"Human input required for {node_id}")
+        self.node_id = node_id
+        self.policy = policy
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+    id: str
+    declaration: dict[str, Any]
+    adk_agent: Any | None = None
+
+
+def _agent_kwargs(declaration: dict[str, Any]) -> dict[str, Any]:
+    model = declaration.get('model') or {}
+    kwargs: dict[str, Any] = {
+        'name': declaration['identifier'],
+        'description': declaration.get('name', declaration['id']),
+    }
+    if model.get('model'):
+        kwargs['model'] = model['model']
+    if model.get('instructions'):
+        kwargs['instruction'] = model['instructions']
+    return kwargs
+
+
+def create_node(declaration: dict[str, Any]) -> RuntimeNode:
+    adk_agent = Agent(**_agent_kwargs(declaration)) if declaration.get('runtimeKind') == 'adk' and declaration.get('model') else None
+    return RuntimeNode(id=declaration['id'], declaration=declaration, adk_agent=adk_agent)
+
+
+RUNTIME_NODES = {declaration['id']: create_node(declaration) for declaration in NODE_DECLARATIONS}
+AGENT_DECLARATIONS = [node.adk_agent for node in RUNTIME_NODES.values() if node.adk_agent is not None]
+
+TEAM_AGENT = None
+
+def build_workflow() -> Any:
+    if TEAM_AGENT is not None:
+        return TEAM_AGENT
+    if AGENT_DECLARATIONS:
+        return SequentialAgent(name="loop_workflow_workflow", sub_agents=AGENT_DECLARATIONS)
+    return {'workflow': WORKFLOW, 'route_map': ROUTE_MAP}
+
+
+root_agent = build_workflow()
+
+
+async def run_workflow(input_payload: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {'input': input_payload, 'visited': []}
+    current = ROUTE_MAP.get('startNodeId')
+    iteration_counts: dict[str, int] = {}
+    while current is not None:
+        node = RUNTIME_NODES[current]
+        state['visited'].append(current)
+        declaration = node.declaration
+        if declaration.get('humanInput'):
+            raise HumanInputRequired(current, declaration['humanInput'])
+        if declaration.get('category') == 'loop':
+            iteration_counts[current] = iteration_counts.get(current, 0) + 1
+            loop_meta = ROUTE_MAP.get('loops', {}).get(current, {})
+            max_iterations = loop_meta.get('maxIterations') or 1
+            if iteration_counts[current] >= max_iterations:
+                exit_handle = loop_meta.get('exitHandle')
+                candidates = [edge for edge in ROUTE_MAP['outgoing'].get(current, []) if edge.get('sourceHandle') == exit_handle] if exit_handle else ROUTE_MAP['outgoing'].get(current, [])
+            else:
+                candidates = ROUTE_MAP['outgoing'].get(current, [])
+        else:
+            candidates = ROUTE_MAP['outgoing'].get(current, [])
+        current = candidates[0]['target'] if candidates else None
+        if current in ROUTE_MAP.get('terminalNodeIds', []):
+            state['visited'].append(current)
+            current = None
+    return state
+
+",
+      "mediaType": "text/x-python",
+      "path": "robflow_adk/workflow.py",
+    },
+    {
+      "content": "{
+  "edges": [
+    {
+      "id": "loop-again",
+      "source": "loop",
+      "sourceHandle": "again",
+      "target": "loop",
+      "targetHandle": "in"
+    },
+    {
+      "id": "loop-end",
+      "source": "loop",
+      "sourceHandle": "done",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-loop",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "loop",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {
+    "loop": {
+      "allowCycles": true,
+      "condition": "state.hasMore",
+      "exitHandle": "done",
+      "maxIterations": 3
+    }
+  },
+  "outgoing": {
+    "end": [],
+    "loop": [
+      {
+        "id": "loop-again",
+        "source": "loop",
+        "sourceHandle": "again",
+        "target": "loop",
+        "targetHandle": "in"
+      },
+      {
+        "id": "loop-end",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "start": [
+      {
+        "id": "start-loop",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "loop",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/route_map.json",
+    },
+    {
+      "content": "{
+  "artifacts": [
+    {
+      "kind": "python",
+      "path": "robflow_adk/workflow.py",
+      "sha256": "4d8d1beb3687160393d4b4c6fa2b6b6930e7ef11aa3609176fd1589d3e7ece23"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/route_map.json",
+      "sha256": "8a578a3e4c5c6d85bc945152cc509c0acfe0de582e706f0ecc5fe7270ff895ec"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/diagnostics.json",
+      "sha256": "a3de1d8064e5cca800b6824944484ce9341cd9e71c2eae84e023ad86a16138f9"
+    },
+    {
+      "kind": "markdown",
+      "path": "README.md",
+      "sha256": "ae28c8ef641b5dff22bb323940a241e2ff71b9b0a5ef974da3ed52a2aab5b1b5"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/manifest.json",
+      "sha256": "b4e4b10040a93583cef442883c7bca46fc0c8a65a0893ce59d0323feb1966737"
+    }
+  ],
+  "compiler": {
+    "name": "@robflow/compiler-adk",
+    "target": "adk-python-2.0",
+    "version": "0.1.0"
+  },
+  "diagnostics": {
+    "errors": 0,
+    "infos": 1,
+    "warnings": 0
+  },
+  "entrypoint": "robflow_adk.workflow:root_agent",
+  "routeMap": "robflow_adk/route_map.json",
+  "workflow": {
+    "edgeCount": 3,
+    "id": "loop-workflow",
+    "name": "Loop Workflow",
+    "nodeCount": 3,
+    "schemaVersion": "2025-01",
+    "version": "1"
+  }
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/manifest.json",
+    },
+    {
+      "content": "[
+  {
+    "code": "loop-annotated",
+    "message": "Loop 'loop' was exported with condition and iteration guard metadata.",
+    "nodeId": "loop",
+    "severity": "info"
+  }
+]
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/diagnostics.json",
+    },
+    {
+      "content": "# Loop Workflow ADK Export
+
+Workflow \`loop-workflow\` version \`1\` compiled for ADK Python 2.0-compatible workers.
+
+## Entrypoint
+
+\`robflow_adk.workflow:root_agent\` declares the import-safe ADK artifact. \`run_workflow\` is a deterministic placeholder executor for syntax/import validation and worker integration tests.
+
+## Diagnostics
+
+- errors: 0
+- warnings: 0
+- infos: 1
+",
+      "mediaType": "text/markdown",
+      "path": "README.md",
+    },
+  ],
+  "manifest": {
+    "artifacts": [
+      {
+        "kind": "python",
+        "path": "robflow_adk/workflow.py",
+        "sha256": "4d8d1beb3687160393d4b4c6fa2b6b6930e7ef11aa3609176fd1589d3e7ece23",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/route_map.json",
+        "sha256": "8a578a3e4c5c6d85bc945152cc509c0acfe0de582e706f0ecc5fe7270ff895ec",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/diagnostics.json",
+        "sha256": "a3de1d8064e5cca800b6824944484ce9341cd9e71c2eae84e023ad86a16138f9",
+      },
+      {
+        "kind": "markdown",
+        "path": "README.md",
+        "sha256": "ae28c8ef641b5dff22bb323940a241e2ff71b9b0a5ef974da3ed52a2aab5b1b5",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/manifest.json",
+        "sha256": "b4e4b10040a93583cef442883c7bca46fc0c8a65a0893ce59d0323feb1966737",
+      },
+    ],
+    "compiler": {
+      "name": "@robflow/compiler-adk",
+      "target": "adk-python-2.0",
+      "version": "0.1.0",
+    },
+    "diagnostics": {
+      "errors": 0,
+      "infos": 1,
+      "warnings": 0,
+    },
+    "entrypoint": "robflow_adk.workflow:root_agent",
+    "routeMap": "robflow_adk/route_map.json",
+    "workflow": {
+      "edgeCount": 3,
+      "id": "loop-workflow",
+      "name": "Loop Workflow",
+      "nodeCount": 3,
+      "schemaVersion": "2025-01",
+      "version": "1",
+    },
+  },
+}
+`;
+
+exports[`compileWorkflowToAdk > matches the golden ADK export snapshot for reusable 1`] = `
+{
+  "diagnostics": [
+    {
+      "code": "runtime-kind-annotated",
+      "message": "Runtime kind 'external' on node 'custom-tool' is represented as metadata only in the ADK export.",
+      "nodeId": "custom-tool",
+      "severity": "warning",
+    },
+    {
+      "code": "custom-node-placeholder",
+      "message": "Custom/reusable node 'custom-tool' requires a worker-side implementation hook.",
+      "nodeId": "custom-tool",
+      "severity": "warning",
+    },
+  ],
+  "files": [
+    {
+      "content": """"Generated Robflow ADK 2.0 workflow artifact.
+
+This module is deterministic and side-effect free on import. It declares ADK
+agents where possible and leaves actual model/tool execution to the worker runtime.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from google.adk.agents import Agent, SequentialAgent, LoopAgent, ParallelAgent
+except Exception:
+    class _AdkFallback:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}({self.kwargs!r})"
+
+    class Agent(_AdkFallback):
+        pass
+
+    class SequentialAgent(_AdkFallback):
+        pass
+
+    class LoopAgent(_AdkFallback):
+        pass
+
+    class ParallelAgent(_AdkFallback):
+        pass
+
+
+WORKFLOW = json.loads(r'''{
+  "edges": [
+    {
+      "id": "start-custom",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "custom-tool",
+      "targetHandle": "in"
+    },
+    {
+      "id": "custom-end",
+      "source": "custom-tool",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "id": "reusable-custom-node-workflow",
+  "name": "Reusable Custom Node Workflow",
+  "nodes": [
+    {
+      "category": "start",
+      "id": "start",
+      "name": "Start",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "type": "trigger.manual"
+    },
+    {
+      "category": "action",
+      "id": "custom-tool",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "CRM Lookup",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "runtime": {
+        "entrypoint": "crm.lookup",
+        "kind": "external",
+        "tool": {
+          "name": "crmLookup",
+          "version": "1"
+        }
+      },
+      "type": "reusable.crm-lookup"
+    },
+    {
+      "category": "terminal",
+      "id": "end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "End",
+      "type": "terminal.success"
+    }
+  ],
+  "schemaVersion": "2025-01",
+  "version": "1"
+}''')
+NODE_DECLARATIONS = json.loads(r'''[
+  {
+    "category": "start",
+    "id": "start",
+    "identifier": "start",
+    "name": "Start",
+    "type": "trigger.manual"
+  },
+  {
+    "category": "action",
+    "entrypoint": "crm.lookup",
+    "id": "custom-tool",
+    "identifier": "custom_tool",
+    "name": "CRM Lookup",
+    "runtimeKind": "external",
+    "tool": {
+      "name": "crmLookup",
+      "version": "1"
+    },
+    "type": "reusable.crm-lookup"
+  },
+  {
+    "category": "terminal",
+    "id": "end",
+    "identifier": "end",
+    "name": "End",
+    "type": "terminal.success"
+  }
+]''')
+ROUTE_MAP = json.loads(r'''{
+  "edges": [
+    {
+      "id": "custom-end",
+      "source": "custom-tool",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-custom",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "custom-tool",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "custom-tool": [
+      {
+        "id": "custom-end",
+        "source": "custom-tool",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "end": [],
+    "start": [
+      {
+        "id": "start-custom",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "custom-tool",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}''')
+COMPILE_DIAGNOSTICS = json.loads(r'''[
+  {
+    "code": "runtime-kind-annotated",
+    "message": "Runtime kind 'external' on node 'custom-tool' is represented as metadata only in the ADK export.",
+    "nodeId": "custom-tool",
+    "severity": "warning"
+  },
+  {
+    "code": "custom-node-placeholder",
+    "message": "Custom/reusable node 'custom-tool' requires a worker-side implementation hook.",
+    "nodeId": "custom-tool",
+    "severity": "warning"
+  }
+]''')
+
+
+class HumanInputRequired(RuntimeError):
+    def __init__(self, node_id: str, policy: dict[str, Any]) -> None:
+        super().__init__(f"Human input required for {node_id}")
+        self.node_id = node_id
+        self.policy = policy
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+    id: str
+    declaration: dict[str, Any]
+    adk_agent: Any | None = None
+
+
+def _agent_kwargs(declaration: dict[str, Any]) -> dict[str, Any]:
+    model = declaration.get('model') or {}
+    kwargs: dict[str, Any] = {
+        'name': declaration['identifier'],
+        'description': declaration.get('name', declaration['id']),
+    }
+    if model.get('model'):
+        kwargs['model'] = model['model']
+    if model.get('instructions'):
+        kwargs['instruction'] = model['instructions']
+    return kwargs
+
+
+def create_node(declaration: dict[str, Any]) -> RuntimeNode:
+    adk_agent = Agent(**_agent_kwargs(declaration)) if declaration.get('runtimeKind') == 'adk' and declaration.get('model') else None
+    return RuntimeNode(id=declaration['id'], declaration=declaration, adk_agent=adk_agent)
+
+
+RUNTIME_NODES = {declaration['id']: create_node(declaration) for declaration in NODE_DECLARATIONS}
+AGENT_DECLARATIONS = [node.adk_agent for node in RUNTIME_NODES.values() if node.adk_agent is not None]
+
+TEAM_AGENT = None
+
+def build_workflow() -> Any:
+    if TEAM_AGENT is not None:
+        return TEAM_AGENT
+    if AGENT_DECLARATIONS:
+        return SequentialAgent(name="reusable_custom_node_workflow_workflow", sub_agents=AGENT_DECLARATIONS)
+    return {'workflow': WORKFLOW, 'route_map': ROUTE_MAP}
+
+
+root_agent = build_workflow()
+
+
+async def run_workflow(input_payload: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {'input': input_payload, 'visited': []}
+    current = ROUTE_MAP.get('startNodeId')
+    iteration_counts: dict[str, int] = {}
+    while current is not None:
+        node = RUNTIME_NODES[current]
+        state['visited'].append(current)
+        declaration = node.declaration
+        if declaration.get('humanInput'):
+            raise HumanInputRequired(current, declaration['humanInput'])
+        if declaration.get('category') == 'loop':
+            iteration_counts[current] = iteration_counts.get(current, 0) + 1
+            loop_meta = ROUTE_MAP.get('loops', {}).get(current, {})
+            max_iterations = loop_meta.get('maxIterations') or 1
+            if iteration_counts[current] >= max_iterations:
+                exit_handle = loop_meta.get('exitHandle')
+                candidates = [edge for edge in ROUTE_MAP['outgoing'].get(current, []) if edge.get('sourceHandle') == exit_handle] if exit_handle else ROUTE_MAP['outgoing'].get(current, [])
+            else:
+                candidates = ROUTE_MAP['outgoing'].get(current, [])
+        else:
+            candidates = ROUTE_MAP['outgoing'].get(current, [])
+        current = candidates[0]['target'] if candidates else None
+        if current in ROUTE_MAP.get('terminalNodeIds', []):
+            state['visited'].append(current)
+            current = None
+    return state
+
+",
+      "mediaType": "text/x-python",
+      "path": "robflow_adk/workflow.py",
+    },
+    {
+      "content": "{
+  "edges": [
+    {
+      "id": "custom-end",
+      "source": "custom-tool",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-custom",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "custom-tool",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "custom-tool": [
+      {
+        "id": "custom-end",
+        "source": "custom-tool",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "end": [],
+    "start": [
+      {
+        "id": "start-custom",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "custom-tool",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/route_map.json",
+    },
+    {
+      "content": "{
+  "artifacts": [
+    {
+      "kind": "python",
+      "path": "robflow_adk/workflow.py",
+      "sha256": "3d8e8a5cbb348796617db7c95186e5571d4c8d1472290b85a1e83abd151e9a89"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/route_map.json",
+      "sha256": "62530004d11410e943e5ee3c7799ef7412aadf73fcc20f2bfe3686e35069b41c"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/diagnostics.json",
+      "sha256": "0d737a5e7f95a4ddcc3bb029f4ddcc492be453a356776b229639154de90229cc"
+    },
+    {
+      "kind": "markdown",
+      "path": "README.md",
+      "sha256": "1fcbd95696688ea36ebc7f6029eca00851987f432dfefc79a822de6da1f1c805"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/manifest.json",
+      "sha256": "8c7995441813c9c32d8a90160a75fd15bae642a146afe35138dfbc831b4e2ccd"
+    }
+  ],
+  "compiler": {
+    "name": "@robflow/compiler-adk",
+    "target": "adk-python-2.0",
+    "version": "0.1.0"
+  },
+  "diagnostics": {
+    "errors": 0,
+    "infos": 0,
+    "warnings": 2
+  },
+  "entrypoint": "robflow_adk.workflow:root_agent",
+  "routeMap": "robflow_adk/route_map.json",
+  "workflow": {
+    "edgeCount": 2,
+    "id": "reusable-custom-node-workflow",
+    "name": "Reusable Custom Node Workflow",
+    "nodeCount": 3,
+    "schemaVersion": "2025-01",
+    "version": "1"
+  }
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/manifest.json",
+    },
+    {
+      "content": "[
+  {
+    "code": "runtime-kind-annotated",
+    "message": "Runtime kind 'external' on node 'custom-tool' is represented as metadata only in the ADK export.",
+    "nodeId": "custom-tool",
+    "severity": "warning"
+  },
+  {
+    "code": "custom-node-placeholder",
+    "message": "Custom/reusable node 'custom-tool' requires a worker-side implementation hook.",
+    "nodeId": "custom-tool",
+    "severity": "warning"
+  }
+]
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/diagnostics.json",
+    },
+    {
+      "content": "# Reusable Custom Node Workflow ADK Export
+
+Workflow \`reusable-custom-node-workflow\` version \`1\` compiled for ADK Python 2.0-compatible workers.
+
+## Entrypoint
+
+\`robflow_adk.workflow:root_agent\` declares the import-safe ADK artifact. \`run_workflow\` is a deterministic placeholder executor for syntax/import validation and worker integration tests.
+
+## Diagnostics
+
+- errors: 0
+- warnings: 2
+- infos: 0
+",
+      "mediaType": "text/markdown",
+      "path": "README.md",
+    },
+  ],
+  "manifest": {
+    "artifacts": [
+      {
+        "kind": "python",
+        "path": "robflow_adk/workflow.py",
+        "sha256": "3d8e8a5cbb348796617db7c95186e5571d4c8d1472290b85a1e83abd151e9a89",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/route_map.json",
+        "sha256": "62530004d11410e943e5ee3c7799ef7412aadf73fcc20f2bfe3686e35069b41c",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/diagnostics.json",
+        "sha256": "0d737a5e7f95a4ddcc3bb029f4ddcc492be453a356776b229639154de90229cc",
+      },
+      {
+        "kind": "markdown",
+        "path": "README.md",
+        "sha256": "1fcbd95696688ea36ebc7f6029eca00851987f432dfefc79a822de6da1f1c805",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/manifest.json",
+        "sha256": "8c7995441813c9c32d8a90160a75fd15bae642a146afe35138dfbc831b4e2ccd",
+      },
+    ],
+    "compiler": {
+      "name": "@robflow/compiler-adk",
+      "target": "adk-python-2.0",
+      "version": "0.1.0",
+    },
+    "diagnostics": {
+      "errors": 0,
+      "infos": 0,
+      "warnings": 2,
+    },
+    "entrypoint": "robflow_adk.workflow:root_agent",
+    "routeMap": "robflow_adk/route_map.json",
+    "workflow": {
+      "edgeCount": 2,
+      "id": "reusable-custom-node-workflow",
+      "name": "Reusable Custom Node Workflow",
+      "nodeCount": 3,
+      "schemaVersion": "2025-01",
+      "version": "1",
+    },
+  },
+}
+`;
+
+exports[`compileWorkflowToAdk > matches the golden ADK export snapshot for sequential 1`] = `
+{
+  "diagnostics": [
+    {
+      "code": "retry-annotated",
+      "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+      "nodeId": "agent",
+      "severity": "info",
+    },
+  ],
+  "files": [
+    {
+      "content": """"Generated Robflow ADK 2.0 workflow artifact.
+
+This module is deterministic and side-effect free on import. It declares ADK
+agents where possible and leaves actual model/tool execution to the worker runtime.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+
+try:
+    from google.adk.agents import Agent, SequentialAgent, LoopAgent, ParallelAgent
+except Exception:
+    class _AdkFallback:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}({self.kwargs!r})"
+
+    class Agent(_AdkFallback):
+        pass
+
+    class SequentialAgent(_AdkFallback):
+        pass
+
+    class LoopAgent(_AdkFallback):
+        pass
+
+    class ParallelAgent(_AdkFallback):
+        pass
+
+
+WORKFLOW = json.loads(r'''{
+  "edges": [
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    },
+    {
+      "id": "agent-end",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    }
+  ],
+  "id": "sequential-workflow",
+  "name": "Sequential Workflow",
+  "nodes": [
+    {
+      "category": "start",
+      "id": "start",
+      "name": "Start",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "type": "trigger.manual"
+    },
+    {
+      "category": "action",
+      "id": "agent",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "agent",
+      "outputs": [
+        {
+          "id": "out",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "outputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "runtime": {
+        "entrypoint": "agent.run",
+        "kind": "adk",
+        "model": {
+          "instructions": "Run agent",
+          "model": "gemini-2.0-flash",
+          "provider": "google"
+        },
+        "retry": {
+          "backoff": "fixed",
+          "initialDelayMs": 100,
+          "maxAttempts": 2
+        }
+      },
+      "type": "action.adk-agent"
+    },
+    {
+      "category": "terminal",
+      "id": "end",
+      "inputs": [
+        {
+          "id": "in",
+          "schema": {
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "approved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "answer"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "inputSchema": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "name": "End",
+      "type": "terminal.success"
+    }
+  ],
+  "schemaVersion": "2025-01",
+  "version": "1"
+}''')
+NODE_DECLARATIONS = json.loads(r'''[
+  {
+    "category": "start",
+    "id": "start",
+    "identifier": "start",
+    "name": "Start",
+    "type": "trigger.manual"
+  },
+  {
+    "category": "action",
+    "entrypoint": "agent.run",
+    "id": "agent",
+    "identifier": "agent",
+    "model": {
+      "instructions": "Run agent",
+      "model": "gemini-2.0-flash",
+      "provider": "google"
+    },
+    "name": "agent",
+    "retry": {
+      "backoff": "fixed",
+      "initialDelayMs": 100,
+      "maxAttempts": 2
+    },
+    "runtimeKind": "adk",
+    "type": "action.adk-agent"
+  },
+  {
+    "category": "terminal",
+    "id": "end",
+    "identifier": "end",
+    "name": "End",
+    "type": "terminal.success"
+  }
+]''')
+ROUTE_MAP = json.loads(r'''{
+  "edges": [
+    {
+      "id": "agent-end",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "agent": [
+      {
+        "id": "agent-end",
+        "source": "agent",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "end": [],
+    "start": [
+      {
+        "id": "start-agent",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "agent",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}''')
+COMPILE_DIAGNOSTICS = json.loads(r'''[
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+    "nodeId": "agent",
+    "severity": "info"
+  }
+]''')
+
+
+class HumanInputRequired(RuntimeError):
+    def __init__(self, node_id: str, policy: dict[str, Any]) -> None:
+        super().__init__(f"Human input required for {node_id}")
+        self.node_id = node_id
+        self.policy = policy
+
+
+@dataclass(frozen=True)
+class RuntimeNode:
+    id: str
+    declaration: dict[str, Any]
+    adk_agent: Any | None = None
+
+
+def _agent_kwargs(declaration: dict[str, Any]) -> dict[str, Any]:
+    model = declaration.get('model') or {}
+    kwargs: dict[str, Any] = {
+        'name': declaration['identifier'],
+        'description': declaration.get('name', declaration['id']),
+    }
+    if model.get('model'):
+        kwargs['model'] = model['model']
+    if model.get('instructions'):
+        kwargs['instruction'] = model['instructions']
+    return kwargs
+
+
+def create_node(declaration: dict[str, Any]) -> RuntimeNode:
+    adk_agent = Agent(**_agent_kwargs(declaration)) if declaration.get('runtimeKind') == 'adk' and declaration.get('model') else None
+    return RuntimeNode(id=declaration['id'], declaration=declaration, adk_agent=adk_agent)
+
+
+RUNTIME_NODES = {declaration['id']: create_node(declaration) for declaration in NODE_DECLARATIONS}
+AGENT_DECLARATIONS = [node.adk_agent for node in RUNTIME_NODES.values() if node.adk_agent is not None]
+
+TEAM_AGENT = None
+
+def build_workflow() -> Any:
+    if TEAM_AGENT is not None:
+        return TEAM_AGENT
+    if AGENT_DECLARATIONS:
+        return SequentialAgent(name="sequential_workflow_workflow", sub_agents=AGENT_DECLARATIONS)
+    return {'workflow': WORKFLOW, 'route_map': ROUTE_MAP}
+
+
+root_agent = build_workflow()
+
+
+async def run_workflow(input_payload: dict[str, Any]) -> dict[str, Any]:
+    state: dict[str, Any] = {'input': input_payload, 'visited': []}
+    current = ROUTE_MAP.get('startNodeId')
+    iteration_counts: dict[str, int] = {}
+    while current is not None:
+        node = RUNTIME_NODES[current]
+        state['visited'].append(current)
+        declaration = node.declaration
+        if declaration.get('humanInput'):
+            raise HumanInputRequired(current, declaration['humanInput'])
+        if declaration.get('category') == 'loop':
+            iteration_counts[current] = iteration_counts.get(current, 0) + 1
+            loop_meta = ROUTE_MAP.get('loops', {}).get(current, {})
+            max_iterations = loop_meta.get('maxIterations') or 1
+            if iteration_counts[current] >= max_iterations:
+                exit_handle = loop_meta.get('exitHandle')
+                candidates = [edge for edge in ROUTE_MAP['outgoing'].get(current, []) if edge.get('sourceHandle') == exit_handle] if exit_handle else ROUTE_MAP['outgoing'].get(current, [])
+            else:
+                candidates = ROUTE_MAP['outgoing'].get(current, [])
+        else:
+            candidates = ROUTE_MAP['outgoing'].get(current, [])
+        current = candidates[0]['target'] if candidates else None
+        if current in ROUTE_MAP.get('terminalNodeIds', []):
+            state['visited'].append(current)
+            current = None
+    return state
+
+",
+      "mediaType": "text/x-python",
+      "path": "robflow_adk/workflow.py",
+    },
+    {
+      "content": "{
+  "edges": [
+    {
+      "id": "agent-end",
+      "source": "agent",
+      "sourceHandle": "out",
+      "target": "end",
+      "targetHandle": "in"
+    },
+    {
+      "id": "start-agent",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "agent",
+      "targetHandle": "in"
+    }
+  ],
+  "loops": {},
+  "outgoing": {
+    "agent": [
+      {
+        "id": "agent-end",
+        "source": "agent",
+        "sourceHandle": "out",
+        "target": "end",
+        "targetHandle": "in"
+      }
+    ],
+    "end": [],
+    "start": [
+      {
+        "id": "start-agent",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "agent",
+        "targetHandle": "in"
+      }
+    ]
+  },
+  "routers": {},
+  "startNodeId": "start",
+  "terminalNodeIds": [
+    "end"
+  ]
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/route_map.json",
+    },
+    {
+      "content": "{
+  "artifacts": [
+    {
+      "kind": "python",
+      "path": "robflow_adk/workflow.py",
+      "sha256": "735ec929d38da7a3eab558114caeee46cdfdfd18aa384db937e3416305b625b7"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/route_map.json",
+      "sha256": "71a9f0665bb63d3b004a7fcf1613ffa23bd6e80e312935c2075e3430be6361c7"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/diagnostics.json",
+      "sha256": "6158ebe8775ff59c16081c25761313602f96a50fcbe3c418f9b04f94c5ef5d84"
+    },
+    {
+      "kind": "markdown",
+      "path": "README.md",
+      "sha256": "4c683d400e637de715fe9f638fcadebc232b1d286618e8ea5444c76f2cf60379"
+    },
+    {
+      "kind": "json",
+      "path": "robflow_adk/manifest.json",
+      "sha256": "1210c8179a778f31ab5f3b6933c425a29fcf3840261c35b1e3ee0dd9730bccff"
+    }
+  ],
+  "compiler": {
+    "name": "@robflow/compiler-adk",
+    "target": "adk-python-2.0",
+    "version": "0.1.0"
+  },
+  "diagnostics": {
+    "errors": 0,
+    "infos": 1,
+    "warnings": 0
+  },
+  "entrypoint": "robflow_adk.workflow:root_agent",
+  "routeMap": "robflow_adk/route_map.json",
+  "workflow": {
+    "edgeCount": 2,
+    "id": "sequential-workflow",
+    "name": "Sequential Workflow",
+    "nodeCount": 3,
+    "schemaVersion": "2025-01",
+    "version": "1"
+  }
+}
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/manifest.json",
+    },
+    {
+      "content": "[
+  {
+    "code": "retry-annotated",
+    "message": "Retry policy for 'agent' was exported as metadata for the worker runtime.",
+    "nodeId": "agent",
+    "severity": "info"
+  }
+]
+",
+      "mediaType": "application/json",
+      "path": "robflow_adk/diagnostics.json",
+    },
+    {
+      "content": "# Sequential Workflow ADK Export
+
+Workflow \`sequential-workflow\` version \`1\` compiled for ADK Python 2.0-compatible workers.
+
+## Entrypoint
+
+\`robflow_adk.workflow:root_agent\` declares the import-safe ADK artifact. \`run_workflow\` is a deterministic placeholder executor for syntax/import validation and worker integration tests.
+
+## Diagnostics
+
+- errors: 0
+- warnings: 0
+- infos: 1
+",
+      "mediaType": "text/markdown",
+      "path": "README.md",
+    },
+  ],
+  "manifest": {
+    "artifacts": [
+      {
+        "kind": "python",
+        "path": "robflow_adk/workflow.py",
+        "sha256": "735ec929d38da7a3eab558114caeee46cdfdfd18aa384db937e3416305b625b7",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/route_map.json",
+        "sha256": "71a9f0665bb63d3b004a7fcf1613ffa23bd6e80e312935c2075e3430be6361c7",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/diagnostics.json",
+        "sha256": "6158ebe8775ff59c16081c25761313602f96a50fcbe3c418f9b04f94c5ef5d84",
+      },
+      {
+        "kind": "markdown",
+        "path": "README.md",
+        "sha256": "4c683d400e637de715fe9f638fcadebc232b1d286618e8ea5444c76f2cf60379",
+      },
+      {
+        "kind": "json",
+        "path": "robflow_adk/manifest.json",
+        "sha256": "1210c8179a778f31ab5f3b6933c425a29fcf3840261c35b1e3ee0dd9730bccff",
+      },
+    ],
+    "compiler": {
+      "name": "@robflow/compiler-adk",
+      "target": "adk-python-2.0",
+      "version": "0.1.0",
+    },
+    "diagnostics": {
+      "errors": 0,
+      "infos": 1,
+      "warnings": 0,
+    },
+    "entrypoint": "robflow_adk.workflow:root_agent",
+    "routeMap": "robflow_adk/route_map.json",
+    "workflow": {
+      "edgeCount": 2,
+      "id": "sequential-workflow",
+      "name": "Sequential Workflow",
+      "nodeCount": 3,
+      "schemaVersion": "2025-01",
+      "version": "1",
+    },
+  },
+}
+`;

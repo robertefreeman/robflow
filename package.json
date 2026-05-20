@@ -1,0 +1,39 @@
+{
+  "name": "robflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Robflow monorepo foundation for the web app, shared TypeScript packages, and ADK worker.",
+  "workspaces": [
+    "packages/*",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @robflow/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:worker",
+    "typecheck:worker": "python3 -m compileall -q apps/worker-adk/src apps/worker-adk/tests",
+    "test": "npm run test --workspaces --if-present && npm run test:worker",
+    "test:worker": "PYTHONPATH=apps/worker-adk/src python3 -m unittest discover -s apps/worker-adk/tests",
+    "db:generate": "npm run db:generate -w @robflow/persistence",
+    "db:migrate": "npm run db:migrate -w @robflow/persistence",
+    "db:seed": "npm run db:seed -w @robflow/persistence"
+  },
+  "engines": {
+    "node": ">=20.9.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.4.5",
+    "@eslint/js": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "latest",
+    "tsx": "^4.22.3",
+    "typescript": "latest",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}

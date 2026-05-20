@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-robflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-robflow_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-robflow}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-robflow}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://robflow:robflow_dev_password@postgres:5432/robflow}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  worker-adk:
+    build:
+      context: ./apps/worker-adk
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://robflow:robflow_dev_password@postgres:5432/robflow}
+      WORKER_ADK_HOST: 0.0.0.0
+      WORKER_ADK_PORT: ${WORKER_ADK_PORT:-8080}
+    ports:
+      - "${WORKER_ADK_PORT:-8080}:8080"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -m robflow_worker_adk.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  postgres-data:

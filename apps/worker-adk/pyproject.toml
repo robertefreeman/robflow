@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robflow-worker-adk"
+version = "0.1.0"
+description = "Robflow Python ADK worker skeleton"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "google-adk>=1.18,<2.0",
+  "psycopg[binary]>=3.2,<4.0"
+]
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+robflow-worker-adk = "robflow_worker_adk.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
