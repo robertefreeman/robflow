@@ -218,6 +218,35 @@ class WorkerRuntimeTest(unittest.TestCase):
         self.assertEqual(store.output["result"]["firecrawlDocuments"][0]["markdown"], "# Article")
         self.assertTrue(any(event[0] == "tool.completed" for event in store.events))
 
+    def test_worker_routes_visible_loop_until_sufficient_or_max_iterations(self) -> None:
+        workflow = {
+            "nodes": [
+                {"id": "start", "category": "start", "name": "Start"},
+                {"id": "review", "category": "action", "name": "Review", "runtime": {"kind": "adk", "model": {"provider": "openai-compatible", "model": "demo-model"}}, "config": {"mergeJsonOutput": True}},
+                {"id": "loop", "category": "loop", "name": "Loop", "loop": {"allowCycles": True, "condition": "not sufficient", "maxIterations": 3, "continueHandle": "continue", "exitHandle": "done"}},
+                {"id": "end", "category": "terminal", "name": "End"},
+            ],
+            "edges": [
+                {"source": "start", "target": "review"},
+                {"source": "review", "target": "loop"},
+                {"source": "loop", "sourceHandle": "continue", "target": "review"},
+                {"source": "loop", "sourceHandle": "done", "target": "end"},
+            ],
+        }
+        job = LeasedJob(id="job-6", kind="manual", payload={"workflowIr": workflow})
+        store = FakeStore(job, workflow)
+        responses = [
+            FakeResponse({"choices": [{"message": {"content": json.dumps({"sufficient": False, "gaps": "need more"})}}]}),
+            FakeResponse({"choices": [{"message": {"content": json.dumps({"sufficient": True, "gaps": ""})}}]}),
+        ]
+
+        with patch("robflow_worker_adk.runtime.request.urlopen", side_effect=responses):
+            self.assertTrue(Worker(store, worker_id="test").run_once())
+
+        self.assertEqual(store.run_status, "succeeded")
+        self.assertEqual(store.output["visited"], ["start", "review", "loop", "review", "loop", "end"])
+        self.assertTrue(store.output["result"]["sufficient"])
+
     def test_runner_protocol_helpers_are_deterministic(self) -> None:
         backoff = RetryBackoff(max_attempts=4, initial_delay_seconds=0.5, multiplier=2, max_delay_seconds=2)
         self.assertEqual(backoff.delay_for_attempt(1), 0.5)

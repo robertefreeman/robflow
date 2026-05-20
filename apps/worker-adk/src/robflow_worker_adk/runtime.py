@@ -369,6 +369,7 @@ class DeterministicWorkflowExecutor:
         current = self._next_after(str(resume.get("nodeId")), edges) if resume and resume.get("nodeId") else start_node_id
         visited: list[str] = []
         last_output: JsonObject = dict(resume.get("response", {})) if resume and isinstance(resume.get("response"), dict) else dict(run.input)
+        loop_counts: dict[str, int] = {}
 
         self.store.update_run(run.id, "running", started=True)
         self.store.append_log(run.id, "info", "Worker started run", {"jobId": job.id, "kind": job.kind, "adapter": "robflow-live-openai-compatible"})
@@ -404,7 +405,7 @@ class DeterministicWorkflowExecutor:
             self.store.append_event(run.id, "node.completed", node_id=current, node_info=node_info, output=last_output)
             if node.get("category") == "terminal":
                 break
-            current = self._select_next(node, edges)
+            current = self._select_next(node, edges, last_output, loop_counts)
 
         output = {"result": last_output, "visited": visited, "adapter": "robflow-live-openai-compatible"}
         self.store.append_event(run.id, "run.completed", output=output)
@@ -477,6 +478,7 @@ class DeterministicWorkflowExecutor:
         response_body = self._post_chat_completion(config, request_body)
         content = self._extract_message_content(response_body)
         usage = response_body.get("usage") if isinstance(response_body.get("usage"), dict) else {}
+        parsed = _extract_json_object(content) if node_config.get("parseJson") is True or node_config.get("mergeJsonOutput") is True else None
         output = {
             **input_payload,
             "response": content,
@@ -485,6 +487,10 @@ class DeterministicWorkflowExecutor:
             "nodeId": node.get("id"),
             "nodeName": node.get("name"),
         }
+        if parsed is not None and node_config.get("mergeJsonOutput") is True:
+            output.update(parsed)
+        elif parsed is not None:
+            output["parsedResponse"] = parsed
         self.store.append_event(run_id, "model.completed", node_id=node_id, node_info={"model": model}, output={"response": content}, payload={"usage": usage})
         return output
 
@@ -518,10 +524,11 @@ class DeterministicWorkflowExecutor:
         results: list[JsonObject] = []
         for query in queries:
             results.extend(self._search_searxng(base_url, query, max_results))
+        existing = input_payload.get("searchResults") if isinstance(input_payload.get("searchResults"), list) else []
         return {
             **input_payload,
             "searchQueries": queries,
-            "searchResults": self._dedupe_results(results)[:max_queries * max_results],
+            "searchResults": self._dedupe_results([*existing, *results])[:100],
             "searxng": {"baseUrl": base_url, "maxResults": max_results},
         }
 
@@ -538,9 +545,10 @@ class DeterministicWorkflowExecutor:
                 documents.append(self._firecrawl_crawl(base_url, url, config))
             else:
                 documents.append(self._firecrawl_scrape(base_url, url))
+        existing = input_payload.get("firecrawlDocuments") if isinstance(input_payload.get("firecrawlDocuments"), list) else []
         return {
             **input_payload,
-            "firecrawlDocuments": documents,
+            "firecrawlDocuments": [*existing, *documents],
             "firecrawl": {"baseUrl": base_url, "operation": operation, "maxPages": max_pages},
         }
 
@@ -792,7 +800,7 @@ class DeterministicWorkflowExecutor:
                 return str(node.get("id"))
         return None
 
-    def _select_next(self, node: Mapping[str, Any], edges: Iterable[Mapping[str, Any]]) -> Optional[str]:
+    def _select_next(self, node: Mapping[str, Any], edges: Iterable[Mapping[str, Any]], state: Mapping[str, Any], loop_counts: dict[str, int]) -> Optional[str]:
         outgoing = [edge for edge in edges if edge.get("source") == node.get("id")]
         if not outgoing:
             return None
@@ -801,11 +809,17 @@ class DeterministicWorkflowExecutor:
             return str((default or outgoing[0]).get("target"))
         if node.get("category") == "loop":
             loop = node.get("loop") if isinstance(node.get("loop"), dict) else {}
-            exit_handle = loop.get("exitHandle")
-            if exit_handle:
-                edge = next((candidate for candidate in outgoing if candidate.get("sourceHandle") == exit_handle), None)
-                if edge:
-                    return str(edge.get("target"))
+            loop_id = str(node.get("id"))
+            loop_counts[loop_id] = loop_counts.get(loop_id, 0) + 1
+            max_iterations = _as_int(state.get("maxIterations") if state.get("maxIterations") is not None else loop.get("maxIterations"), 3, minimum=1, maximum=100)
+            sufficient = state.get("sufficient") is True
+            exhausted = loop_counts[loop_id] >= max_iterations
+            continue_handle = _as_text(loop.get("continueHandle")) or "continue"
+            exit_handle = _as_text(loop.get("exitHandle")) or "done"
+            chosen_handle = exit_handle if sufficient or exhausted else continue_handle
+            edge = next((candidate for candidate in outgoing if candidate.get("sourceHandle") == chosen_handle), None)
+            if edge:
+                return str(edge.get("target"))
         return str(outgoing[0].get("target"))
 
     def _next_after(self, node_id: str, edges: Iterable[Mapping[str, Any]]) -> Optional[str]:
