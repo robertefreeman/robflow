@@ -1,6 +1,8 @@
 import unittest
 import json
+from io import BytesIO
 from typing import Dict, Optional
+from urllib import error
 from unittest.mock import patch
 
 from robflow_worker_adk.runtime import LeasedJob, RetryBackoff, RunRecord, RunnerProfile, Worker, dead_letter_payload
@@ -217,6 +219,80 @@ class WorkerRuntimeTest(unittest.TestCase):
         self.assertEqual(store.output["result"]["searchResults"][0]["url"], "https://example.com/article")
         self.assertEqual(store.output["result"]["firecrawlDocuments"][0]["markdown"], "# Article")
         self.assertTrue(any(event[0] == "tool.completed" for event in store.events))
+
+    def test_worker_continues_when_one_firecrawl_url_fails(self) -> None:
+        workflow = {
+            "nodes": [
+                {"id": "start", "category": "start", "name": "Start"},
+                {
+                    "id": "scrape",
+                    "category": "action",
+                    "name": "Scrape",
+                    "runtime": {"kind": "external", "tool": {"name": "firecrawl.scrape"}},
+                    "config": {"baseUrl": "https://firecrawl.example", "maxPages": 2},
+                },
+                {"id": "end", "category": "terminal", "name": "End"},
+            ],
+            "edges": [{"source": "start", "target": "scrape"}, {"source": "scrape", "target": "end"}],
+        }
+        job = LeasedJob(id="job-5a", kind="manual", payload={"workflowIr": workflow})
+        store = FakeStore(job, workflow)
+        object.__setattr__(store.run, "input", {
+            "urls": ["https://example.com/bad", "https://example.com/good"],
+            "searchResults": [{"url": "https://example.com/bad"}, {"url": "https://example.com/good"}],
+        })
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            request_body = json.loads(req.data.decode("utf-8"))
+            if request_body["url"] == "https://example.com/bad":
+                raise error.HTTPError(url, 500, "Internal Server Error", {}, BytesIO(b'{"error":"SCRAPE_ALL_ENGINES_FAILED"}'))
+            return FakeResponse({"data": {"url": "https://example.com/good", "markdown": "# Good", "metadata": {"title": "Good"}}})
+
+        with patch("robflow_worker_adk.runtime.request.urlopen", side_effect=fake_urlopen):
+            self.assertTrue(Worker(store, worker_id="test").run_once())
+
+        self.assertEqual(store.run_status, "succeeded")
+        self.assertEqual(store.output["result"]["firecrawlDocuments"][0]["url"], "https://example.com/good")
+        self.assertEqual(store.output["result"]["firecrawlFailures"][0]["status"], 500)
+        self.assertIn("SCRAPE_ALL_ENGINES_FAILED", store.output["result"]["firecrawlFailures"][0]["body"])
+        self.assertTrue(any(event[0] == "tool.url_failed" for event in store.events))
+
+    def test_worker_rejects_firecrawl_urls_outside_evidence_allowlist(self) -> None:
+        workflow = {
+            "nodes": [
+                {"id": "start", "category": "start", "name": "Start"},
+                {
+                    "id": "scrape",
+                    "category": "action",
+                    "name": "Scrape",
+                    "runtime": {"kind": "external", "tool": {"name": "firecrawl.scrape"}},
+                    "config": {"baseUrl": "https://firecrawl.example", "maxPages": 1},
+                },
+                {"id": "end", "category": "terminal", "name": "End"},
+            ],
+            "edges": [{"source": "start", "target": "scrape"}, {"source": "scrape", "target": "end"}],
+        }
+        job = LeasedJob(id="job-5b", kind="manual", payload={"workflowIr": workflow})
+        store = FakeStore(job, workflow)
+        object.__setattr__(store.run, "input", {
+            "urls": ["https://invented.example/article", "https://example.com/allowed"],
+            "searchResults": [{"url": "https://example.com/allowed"}],
+        })
+        requested_urls = []
+
+        def fake_urlopen(req, timeout=30):
+            request_body = json.loads(req.data.decode("utf-8"))
+            requested_urls.append(request_body["url"])
+            return FakeResponse({"data": {"url": request_body["url"], "markdown": "# Allowed", "metadata": {"title": "Allowed"}}})
+
+        with patch("robflow_worker_adk.runtime.request.urlopen", side_effect=fake_urlopen):
+            self.assertTrue(Worker(store, worker_id="test").run_once())
+
+        self.assertEqual(store.run_status, "succeeded")
+        self.assertEqual(requested_urls, ["https://example.com/allowed"])
+        self.assertEqual(store.output["result"]["firecrawlRejectedUrls"], ["https://invented.example/article"])
+        self.assertTrue(any(event[0] == "tool.url_rejected" for event in store.events))
 
     def test_worker_routes_visible_loop_until_sufficient_or_max_iterations(self) -> None:
         workflow = {

@@ -61,6 +61,14 @@ class RunRecord:
     input: JsonObject
 
 
+class HttpJsonRequestError(RuntimeError):
+    def __init__(self, url: str, status: Optional[int], body: str, message: str) -> None:
+        super().__init__(message)
+        self.url = url
+        self.status = status
+        self.body = body
+
+
 class RunStore(Protocol):
     def register_runner(self, profile: RunnerProfile) -> None: ...
     def heartbeat_runner(self, profile: RunnerProfile) -> None: ...
@@ -503,7 +511,7 @@ class DeterministicWorkflowExecutor:
         if tool_name == "searxng.search":
             output = self._execute_searxng_tool(input_payload, config)
         elif tool_name in {"firecrawl.research", "firecrawl.scrape", "firecrawl.map", "firecrawl.crawl"}:
-            output = self._execute_firecrawl_tool(input_payload, config, tool_name)
+            output = self._execute_firecrawl_tool(run_id, node_id, input_payload, config, tool_name)
         else:
             output = {
                 **input_payload,
@@ -532,24 +540,54 @@ class DeterministicWorkflowExecutor:
             "searxng": {"baseUrl": base_url, "maxResults": max_results},
         }
 
-    def _execute_firecrawl_tool(self, input_payload: JsonObject, config: Mapping[str, Any], tool_name: str) -> JsonObject:
+    def _execute_firecrawl_tool(self, run_id: str, node_id: str, input_payload: JsonObject, config: Mapping[str, Any], tool_name: str) -> JsonObject:
         base_url = (_as_text(config.get("baseUrl")) or DEFAULT_FIRECRAWL_BASE_URL).rstrip("/")
         max_pages = _as_int(config.get("maxPages"), 6, minimum=1, maximum=30)
         operation = _as_text(config.get("operation")) or tool_name.removeprefix("firecrawl.")
-        urls = self._extract_urls(input_payload)[:max_pages]
+        enforce_allowlist = config.get("enforceUrlAllowlist") is not False
+        fail_soft = config.get("failSoft") is not False
+        selected_urls = self._extract_urls(input_payload)
+        allowed_urls = self._allowed_firecrawl_urls(input_payload)
+        rejected_urls: list[str] = []
+        if enforce_allowlist and allowed_urls:
+            allowed = set(allowed_urls)
+            rejected_urls = [url for url in selected_urls if url not in allowed]
+            urls = [url for url in selected_urls if url in allowed]
+            if len(urls) < max_pages:
+                urls.extend([url for url in allowed_urls if url not in urls])
+        else:
+            urls = selected_urls or allowed_urls
+        urls = list(dict.fromkeys(urls))[:max_pages]
+        if rejected_urls:
+            self.store.append_log(run_id, "warn", "Rejected Firecrawl URLs not present in search/map evidence", {"nodeId": node_id, "operation": operation, "rejectedUrls": rejected_urls[:20]})
+            self.store.append_event(run_id, "tool.url_rejected", node_id=node_id, node_info={"toolName": tool_name}, payload={"operation": operation, "rejectedUrls": rejected_urls[:20]})
         documents: list[JsonObject] = []
+        failures: list[JsonObject] = []
         for url in urls:
-            if operation == "map":
-                documents.append(self._firecrawl_map(base_url, url))
-            elif operation == "crawl":
-                documents.append(self._firecrawl_crawl(base_url, url, config))
-            else:
-                documents.append(self._firecrawl_scrape(base_url, url))
+            try:
+                if operation == "map":
+                    documents.append(self._firecrawl_map(base_url, url))
+                elif operation == "crawl":
+                    documents.append(self._firecrawl_crawl(base_url, url, config))
+                else:
+                    documents.append(self._firecrawl_scrape(base_url, url))
+            except Exception as exc:
+                failure = self._firecrawl_failure(url, operation, exc)
+                failures.append(failure)
+                self.store.append_log(run_id, "warn", "Firecrawl URL failed; continuing with remaining URLs", {"nodeId": node_id, **failure})
+                self.store.append_event(run_id, "tool.url_failed", node_id=node_id, node_info={"toolName": tool_name}, payload=failure)
+                if not fail_soft:
+                    raise
         existing = input_payload.get("firecrawlDocuments") if isinstance(input_payload.get("firecrawlDocuments"), list) else []
+        if not documents and not existing and failures:
+            self.store.append_log(run_id, "error", "Firecrawl failed for every URL and no prior documents are available", {"nodeId": node_id, "operation": operation, "failures": failures[:10]})
+            raise RuntimeError(f"Firecrawl failed for every {operation} URL")
         return {
             **input_payload,
             "firecrawlDocuments": [*existing, *documents],
-            "firecrawl": {"baseUrl": base_url, "operation": operation, "maxPages": max_pages},
+            "firecrawlFailures": [*(input_payload.get("firecrawlFailures") if isinstance(input_payload.get("firecrawlFailures"), list) else []), *failures],
+            "firecrawlRejectedUrls": [*(input_payload.get("firecrawlRejectedUrls") if isinstance(input_payload.get("firecrawlRejectedUrls"), list) else []), *rejected_urls],
+            "firecrawl": {"baseUrl": base_url, "operation": operation, "maxPages": max_pages, "failSoft": fail_soft, "enforceUrlAllowlist": enforce_allowlist},
         }
 
     def _execute_deep_research_node(self, run_id: str, node_id: str, node: Mapping[str, Any], input_payload: JsonObject, inference_config: Mapping[str, Any], model: str, research_config: Mapping[str, Any]) -> JsonObject:
@@ -632,6 +670,44 @@ class DeterministicWorkflowExecutor:
                 urls.append(result["url"])
         return list(dict.fromkeys(urls))
 
+    def _allowed_firecrawl_urls(self, input_payload: Mapping[str, Any]) -> list[str]:
+        urls: list[str] = []
+
+        def append_url(value: Any) -> None:
+            text = _as_text(value)
+            if text:
+                urls.append(text)
+
+        results = input_payload.get("searchResults")
+        if isinstance(results, list):
+            for result in results:
+                if isinstance(result, Mapping):
+                    append_url(result.get("url"))
+                    append_url(result.get("link"))
+        documents = input_payload.get("firecrawlDocuments")
+        if isinstance(documents, list):
+            for document in documents:
+                if not isinstance(document, Mapping):
+                    continue
+                append_url(document.get("url"))
+                links = document.get("links")
+                if isinstance(links, list):
+                    urls.extend(_extract_string_list(links))
+                raw = document.get("raw")
+                if isinstance(raw, Mapping):
+                    urls.extend(_extract_string_list(raw.get("links")))
+                    data = raw.get("data")
+                    if isinstance(data, list):
+                        urls.extend(_extract_string_list(data))
+                    elif isinstance(data, Mapping):
+                        urls.extend(_extract_string_list(data.get("links")))
+        return [url for url in dict.fromkeys(urls) if url.startswith(("http://", "https://"))]
+
+    def _firecrawl_failure(self, url: str, operation: str, exc: Exception) -> JsonObject:
+        if isinstance(exc, HttpJsonRequestError):
+            return {"operation": operation, "url": url, "status": exc.status, "error": str(exc), "body": _truncate(exc.body, 1000)}
+        return {"operation": operation, "url": url, "status": None, "error": str(exc), "body": ""}
+
     def _user_request(self, input_payload: Mapping[str, Any]) -> str:
         return next((_as_text(input_payload.get(key)) for key in ["userRequest", "user_request", "request", "prompt", "message", "input", "query"] if _as_text(input_payload.get(key))), None) or json.dumps(input_payload, ensure_ascii=False)
 
@@ -672,8 +748,12 @@ class DeterministicWorkflowExecutor:
 
     def _post_json(self, url: str, body: JsonObject, timeout: int = 60) -> JsonObject:
         req = request.Request(url, data=json.dumps(body).encode("utf-8"), headers={"content-type": "application/json"}, method="POST")
-        with request.urlopen(req, timeout=timeout) as response:
-            decoded = json.loads(response.read().decode("utf-8"))
+        try:
+            with request.urlopen(req, timeout=timeout) as response:
+                decoded = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            body_text = exc.read().decode("utf-8", errors="replace")
+            raise HttpJsonRequestError(url, exc.code, body_text, f"HTTP {exc.code} from {url}") from exc
         if not isinstance(decoded, dict):
             raise RuntimeError(f"{url} returned a non-object JSON response")
         return decoded
